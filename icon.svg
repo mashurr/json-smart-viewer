@@ -1,0 +1,60 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a1a;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#000000;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="bracketGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00d4ff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0099cc;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="eyeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffff00;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#ffcc00;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="shadow">
+      <feDropShadow dx="2" dy="2" stdDeviation="3" flood-color="rgba(0,0,0,0.5)"/>
+    </filter>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="64" cy="64" r="60" fill="url(#bgGradient)" stroke="#333" stroke-width="2" filter="url(#shadow)"/>
+  
+  <!-- JSON brackets (left) -->
+  <path d="M25 35 Q20 35 20 40 L20 50 Q15 50 15 55 Q15 60 20 60 L20 70 Q20 75 25 75" 
+        fill="none" stroke="url(#bracketGradient)" stroke-width="4" stroke-linecap="round" filter="url(#glow)"/>
+  
+  <!-- JSON brackets (right) -->
+  <path d="M103 35 Q108 35 108 40 L108 50 Q113 50 113 55 Q113 60 108 60 L108 70 Q108 75 103 75" 
+        fill="none" stroke="url(#bracketGradient)" stroke-width="4" stroke-linecap="round" filter="url(#glow)"/>
+  
+  <!-- Eye shape for "viewer" concept -->
+  <ellipse cx="64" cy="55" rx="20" ry="12" fill="url(#eyeGradient)" filter="url(#glow)"/>
+  <circle cx="64" cy="55" r="8" fill="#000"/>
+  <circle cx="66" cy="53" r="3" fill="#fff"/>
+  
+  <!-- JSON syntax elements -->
+  <!-- String value -->
+  <text x="40" y="82" font-family="monospace" font-size="8" fill="#22c55e" font-weight="bold">"key"</text>
+  
+  <!-- Colon -->
+  <text x="62" y="82" font-family="monospace" font-size="8" fill="#fff" font-weight="bold">:</text>
+  
+  <!-- Value -->
+  <text x="68" y="82" font-family="monospace" font-size="8" fill="#3b82f6" font-weight="bold">123</text>
+  
+  <!-- Expand/collapse arrow -->
+  <polygon points="45,95 52,99 45,103" fill="#00d4ff" filter="url(#glow)"/>
+  
+  <!-- Nested indicator dots -->
+  <circle cx="55" cy="99" r="1.5" fill="#6b7280"/>
+  <circle cx="60" cy="99" r="1.5" fill="#6b7280"/>
+  <circle cx="65" cy="99" r="1.5" fill="#6b7280"/>
+</svg>
