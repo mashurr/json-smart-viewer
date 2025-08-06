@@ -1,5 +1,7 @@
 // extension.js
 const vscode = require('vscode');
+const path = require('path');
+const fs = require('fs');
 
 function activate(context) {
     let disposable = vscode.commands.registerCommand('json-smart-viewer.show', () => {
@@ -18,16 +20,33 @@ function activate(context) {
         }
 
         const panel = vscode.window.createWebviewPanel(
-            'jsonSmartViewer', 'JSON Smart View', vscode.ViewColumn.One, { enableScripts: true }
+            'jsonSmartViewer', 
+            'JSON Smart View', 
+            vscode.ViewColumn.One, 
+            { 
+                enableScripts: true,
+                localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'src'))]
+            }
         );
 
-        panel.webview.html = getWebviewContent(jsonData);
+        // Load the HTML template
+        const htmlPath = path.join(context.extensionPath, 'src', 'index.html');
+        let htmlContent = fs.readFileSync(htmlPath, 'utf8');
+        
+        // Replace placeholders with actual content
+        const nonce = getNonce();
+        htmlContent = htmlContent
+            .replace(/{{NONCE}}/g, nonce)
+            .replace('{{JSON_DATA}}', JSON.stringify(jsonData))
+            .replace('{{ESCAPED_JSON_HTML}}', generateJsonHtml(jsonData));
+
+        panel.webview.html = htmlContent;
     });
 
     context.subscriptions.push(disposable);
 }
 
-function getWebviewContent(jsonData) {
+function generateJsonHtml(jsonData) {
     function jsonToHtml(data, depth = 0) {
         if (data === null) return '<span class="text-purple-300 font-bold">null</span>';
         if (typeof data === 'string') return `<span class="text-green-300">"${escapeHtml(data)}"</span>`;
@@ -103,49 +122,12 @@ function getWebviewContent(jsonData) {
             .replace(/'/g, '&#39;');
     }
 
-    const nonce = getNonce();
-
-    return `<!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta http-equiv="Content-Security-Policy" content="
-            default-src 'none'; 
-            style-src 'unsafe-inline';
-            script-src 'nonce-${nonce}' https://cdn.tailwindcss.com;
-            img-src 'self' data:;">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>JSON Smart View</title>
-        <script nonce="${nonce}" src="https://cdn.tailwindcss.com"></script>
-        <style nonce="${nonce}">
-            .json-arrow { transition: transform 0.2s ease; }
-            .json-toggle[data-collapsed="false"] .json-arrow { transform: rotate(90deg); }
-            .json-toggle[data-collapsed="false"] .json-preview { display: none; }
-            .json-toggle[data-collapsed="false"] + .json-content { display: block !important; }
-        </style>
-    </head>
-    <body class="bg-black text-white font-mono p-6 min-h-screen">
-        <div class="max-w-full overflow-x-auto">
-            <div id="json-container" class="text-sm leading-relaxed">${jsonToHtml(jsonData)}</div>
-        </div>
-
-        <script nonce="${nonce}">
-            document.querySelectorAll('.json-toggle').forEach(toggle => {
-                toggle.dataset.collapsed = 'true';
-                
-                toggle.addEventListener('click', function() {
-                    const isCollapsed = this.dataset.collapsed === 'true';
-                    this.dataset.collapsed = isCollapsed ? 'false' : 'true';
-                });
-            });
-        </script>
-    </body>
-    </html>`;
+    return jsonToHtml(jsonData);
 }
 
 function getNonce() {
     let text = '';
-    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuv8901';
     for (let i = 0; i < 32; i++) {
         text += possible.charAt(Math.floor(Math.random() * possible.length));
     }
@@ -157,4 +139,4 @@ function deactivate() {}
 module.exports = {
     activate,
     deactivate
-}
+};
