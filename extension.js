@@ -28,40 +28,79 @@ function activate(context) {
 }
 
 function getWebviewContent(jsonData) {
-    function jsonToHtml(data) {
-        if (data === null) return '<span class="text-fuchsia-500">null</span>';
-        if (typeof data === 'string') return `<span class="text-green-500">"${data}"</span>`;
-        if (typeof data === 'number') return `<span class="text-blue-500">${data}</span>`;
-        if (typeof data === 'boolean') return `<span class="text-indigo-500">${data}</span>`;
+    function jsonToHtml(data, depth = 0) {
+        if (data === null) return '<span class="text-purple-300 font-bold">null</span>';
+        if (typeof data === 'string') return `<span class="text-green-300">"${escapeHtml(data)}"</span>`;
+        if (typeof data === 'number') return `<span class="text-blue-300">${data}</span>`;
+        if (typeof data === 'boolean') return `<span class="text-yellow-300 font-bold">${data}</span>`;
 
         const isArray = Array.isArray(data);
-        const items = Object.entries(data);
+        const entries = Object.entries(data);
+        
+        if (entries.length === 0) {
+            return `<span class="text-white">${isArray ? '[]' : '{}'}</span>`;
+        }
 
-        if (items.length === 0) return isArray ? '[]' : '{}';
-
-        const listItems = items.map(([key, value]) => {
+        const items = entries.map(([key, value], index) => {
+            const isLast = index === entries.length - 1;
+            const comma = isLast ? '' : '<span class="text-white">,</span>';
             const isCollapsible = value !== null && typeof value === 'object';
-            const keyHtml = `<span class="text-gray-400">${isArray ? `${key}` : `"${key}"`}:</span>`;
-
+            const indent = `ml-${Math.min(depth * 4, 20)}`;
+            
             if (isCollapsible) {
-                // The arrow starts collapsed (pointing right) which is a 180-degree rotation of our SVG.
+                const itemCount = Array.isArray(value) ? value.length : Object.keys(value).length;
+                const preview = itemCount === 0 ? 
+                    (Array.isArray(value) ? '[]' : '{}') : 
+                    `${itemCount} item${itemCount !== 1 ? 's' : ''}`;
+                
                 return `
-                    <li>
-                        <div class="collapser flex items-center cursor-pointer p-1 rounded hover:bg-white/10">
-                            <span class="arrow w-3 h-3 inline-block transition-transform transform rotate-180"></span>
-                            ${keyHtml}
+                    <div class="json-item ${indent}">
+                        <div class="json-toggle flex items-center gap-1 py-1 px-2 rounded hover:bg-white/20 cursor-pointer group">
+                            <svg class="json-arrow w-3 h-3 text-white transition-transform duration-200 transform group-data-[collapsed=true]:rotate-0 group-data-[collapsed=false]:rotate-90" viewBox="0 0 16 16">
+                                <path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <span class="text-cyan-200 font-semibold">${isArray ? key : `"${escapeHtml(key)}"`}</span>
+                            <span class="text-white">:</span>
+                            <span class="json-preview text-white">
+                                ${isArray ? '[' : '{'} <span class="text-sm text-gray-300 italic font-medium">${preview}</span> ${isArray ? ']' : '}'}
+                            </span>
                         </div>
-                        <div class="content pl-4 hidden">
-                            ${jsonToHtml(value)}
+                        <div class="json-content hidden ml-4">
+                            <div class="text-white px-2 font-bold">${isArray ? '[' : '{'}</div>
+                            <div class="ml-2">
+                                ${jsonToHtml(value, depth + 1)}
+                            </div>
+                            <div class="text-white px-2 font-bold">${isArray ? ']' : '}'}${comma}</div>
                         </div>
-                    </li>
+                    </div>
                 `;
             } else {
-                return `<li class="pl-7 p-1">${keyHtml} ${jsonToHtml(value)}</li>`;
+                return `
+                    <div class="json-leaf ${indent} ml-6 flex items-center gap-2 py-1 px-2">
+                        <span class="text-cyan-200 font-semibold">${isArray ? key : `"${escapeHtml(key)}"`}</span>
+                        <span class="text-white">:</span>
+                        <span>${jsonToHtml(value, depth + 1)}</span>${comma}
+                    </div>
+                `;
             }
         }).join('');
 
-        return `<ul class="space-y-1">${listItems}</ul>`;
+        return depth === 0 ? `
+            <div class="json-root">
+                <div class="text-white px-2 mb-2 font-bold text-lg">${isArray ? '[' : '{'}</div>
+                <div>${items}</div>
+                <div class="text-white px-2 mt-2 font-bold text-lg">${isArray ? ']' : '}'}</div>
+            </div>
+        ` : items;
+    }
+
+    function escapeHtml(text) {
+        return String(text)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
 
     const nonce = getNonce();
@@ -79,26 +118,24 @@ function getWebviewContent(jsonData) {
         <title>JSON Smart View</title>
         <script nonce="${nonce}" src="https://cdn.tailwindcss.com"></script>
         <style nonce="${nonce}">
-            .arrow {
-                background-color: var(--vscode-editor-foreground);
-                -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill="currentColor" d="M10.44 2.06a.75.75 0 0 0 0 1.06L5.56 8l4.88 4.88a.75.75 0 0 0 1.06-1.06L7.69 8l3.81-3.88a.75.75 0 0 0-1.06-1.06z"/></svg>');
-                mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill="currentColor" d="M10.44 2.06a.75.75 0 0 0 0 1.06L5.56 8l4.88 4.88a.75.75 0 0 0 1.06-1.06L7.69 8l3.81-3.88a.75.75 0 0 0-1.06-1.06z"/></svg>');
-            }
+            .json-arrow { transition: transform 0.2s ease; }
+            .json-toggle[data-collapsed="false"] .json-arrow { transform: rotate(90deg); }
+            .json-toggle[data-collapsed="false"] .json-preview { display: none; }
+            .json-toggle[data-collapsed="false"] + .json-content { display: block !important; }
         </style>
     </head>
-    <body class="bg-zinc-900 text-gray-200 font-mono p-4">
-        <div id="json-container">${jsonToHtml(jsonData)}</div>
+    <body class="bg-black text-white font-mono p-6 min-h-screen">
+        <div class="max-w-full overflow-x-auto">
+            <div id="json-container" class="text-sm leading-relaxed">${jsonToHtml(jsonData)}</div>
+        </div>
 
         <script nonce="${nonce}">
-            document.querySelectorAll('.collapser').forEach(collapser => {
-                collapser.addEventListener('click', function() {
-                    const content = this.nextElementSibling;
-                    const arrow = this.querySelector('.arrow');
-                    
-                    content.classList.toggle('hidden');
-                    
-                    arrow.classList.toggle('rotate-180');
-                    arrow.classList.toggle('rotate-[-90deg]');
+            document.querySelectorAll('.json-toggle').forEach(toggle => {
+                toggle.dataset.collapsed = 'true';
+                
+                toggle.addEventListener('click', function() {
+                    const isCollapsed = this.dataset.collapsed === 'true';
+                    this.dataset.collapsed = isCollapsed ? 'false' : 'true';
                 });
             });
         </script>
