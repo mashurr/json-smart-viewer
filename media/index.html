@@ -15,15 +15,6 @@
         {{ESCAPED_JSON_HTML}}
     </div>
 
-    <script nonce="{{NONCE}}">
-        document.querySelectorAll('.json-toggle').forEach(toggle => {
-            toggle.dataset.collapsed = 'true';
-
-            toggle.addEventListener('click', function() {
-                const isCollapsed = this.dataset.collapsed === 'true';
-                this.dataset.collapsed = isCollapsed ? 'false' : 'true';
-            });
-        });
-    </script>
+    <script nonce="{{NONCE}}" src="{{SCRIPT_URI}}"></script>
 </body>
 </html>

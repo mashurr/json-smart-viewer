@@ -20,13 +20,14 @@ export function activate(context: vscode.ExtensionContext) {
         }
 
         const mediaPath = path.join(context.extensionPath, 'media');
+        const outPath = path.join(context.extensionPath, 'out');
         const panel = vscode.window.createWebviewPanel(
             'jsonSmartViewer',
             'JSON Smart View',
             vscode.ViewColumn.One,
             {
                 enableScripts: true,
-                localResourceRoots: [vscode.Uri.file(mediaPath)]
+                localResourceRoots: [vscode.Uri.file(mediaPath), vscode.Uri.file(outPath)]
             }
         );
 
@@ -36,10 +37,12 @@ export function activate(context: vscode.ExtensionContext) {
         // Replace placeholders with actual content
         const nonce = getNonce();
         const styleUri = panel.webview.asWebviewUri(vscode.Uri.file(path.join(mediaPath, 'viewer.css')));
+        const scriptUri = panel.webview.asWebviewUri(vscode.Uri.file(path.join(outPath, 'webview.js')));
         htmlContent = htmlContent
             .replace(/{{NONCE}}/g, nonce)
             .replace('{{CSP_SOURCE}}', panel.webview.cspSource)
             .replace('{{STYLE_URI}}', styleUri.toString())
+            .replace('{{SCRIPT_URI}}', scriptUri.toString())
             // A replacer function keeps `$&`-style patterns in the JSON from being expanded
             .replace('{{ESCAPED_JSON_HTML}}', () => generateJsonHtml(jsonData));
 

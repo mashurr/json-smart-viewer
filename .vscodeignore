@@ -1,7 +1,10 @@
 .vscode/**
+node_modules/**
 src/**
+webview/**
 .gitignore
 .yarnrc
+esbuild.mjs
 **/tsconfig.json
 **/eslint.config.mjs
 **/*.map
