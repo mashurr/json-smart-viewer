@@ -11,15 +11,9 @@ JSON Smart Viewer provides an intuitive way to navigate and understand JSON file
 - Clean indentation that shows the hierarchy at a glance
 - Item count previews for collapsed sections (e.g., "5 items")
 
-### 🎨 **High Contrast Theme**
-- Pure black background with bright, vibrant colors
-- Excellent readability and reduced eye strain
-- Color-coded JSON types:
-  - **Cyan** for property names
-  - **Green** for strings
-  - **Blue** for numbers
-  - **Yellow** for booleans
-  - **Purple** for null values
+### 🎨 **Matches Your Theme**
+- Uses your VS Code theme's background, font and colors, in dark, light and high contrast themes
+- Color-coded JSON types: property names, strings, numbers, booleans and null values each get their own color
 
 ### ⚡ **Easy Activation**
 1. Open any JSON file in VS Code
@@ -28,7 +22,7 @@ JSON Smart Viewer provides an intuitive way to navigate and understand JSON file
 4. View your JSON in a beautiful, navigable format
 
 ### 🛡️ **Secure & Lightweight**
-- No external dependencies beyond Tailwind CSS CDN
+- Works fully offline; nothing is fetched from the internet
 - Proper Content Security Policy implementation
 - Fast rendering even for large JSON files
 
@@ -39,7 +33,6 @@ JSON Smart Viewer provides an intuitive way to navigate and understand JSON file
 ## Requirements
 
 - Visual Studio Code version 1.90.0 or higher
-- Internet connection (for Tailwind CSS CDN)
 
 ## Extension Settings
 
@@ -61,7 +54,6 @@ The viewer will open in a new webview panel alongside your editor, making it eas
 ## Known Issues
 
 - Large JSON files (>10MB) may experience slower initial rendering
-- The extension currently requires an internet connection for Tailwind CSS styling
 - Some very deeply nested JSON structures might require horizontal scrolling
 
 If you encounter any issues, please report them on our [GitHub repository](https://github.com/your-username/json-smart-viewer).
@@ -70,8 +62,6 @@ If you encounter any issues, please report them on our [GitHub repository](https
 
 We're actively working on these exciting features:
 
-- 🎨 **Theme customization** (light mode, custom color schemes)
-- 📱 **Offline mode** (bundled CSS)
 - 🔍 **Search and filter** functionality
 - 📋 **Copy/export** options
 - ⚙️ **Configuration settings** for indentation and colors
