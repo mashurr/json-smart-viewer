@@ -115,6 +115,8 @@ export type ViewMessage =
     | { type: 'revealNode'; version: number; id: number }
     /** Copy a node's path, JSON Pointer or value to the clipboard */
     | { type: 'copy'; version: number; id: number; what: 'path' | 'pointer' | 'value' }
+    /** Open a link from the file in the browser (http and https only) */
+    | { type: 'openUrl'; url: string }
     /** Open the JSON inside a string */
     | { type: 'decode'; version: number; id: number }
     /** List the tables in the document */

@@ -3,6 +3,7 @@
 
 import { Kind, PAGE, TableColumn, TableInfo, TableRow, TableSort, ViewMessage } from '../src/protocol';
 import { closeMenu } from './menu';
+import { decorate } from './previews';
 import { span, valueElement } from './tree';
 
 const ROW_HEIGHT = 22;
@@ -234,7 +235,8 @@ export class TableView {
             const c = row.cells[i];
             if (c) {
                 td.dataset.col = String(i);
-                td.append(valueElement(c));
+                const value = valueElement(c);
+                td.append(value, ...decorate(value, c, this.columns[i].key));
                 if (isContainer(c.kind) && c.size) { td.classList.add('nested'); td.title = 'Show in the tree'; }
                 if (this.matches.has(c.id)) { td.classList.add(c.id === this.currentMatch ? 'current-match' : 'match'); }
             } else {

@@ -4,6 +4,7 @@
 
 import { Kind, PAGE, Page, PathStep, Row, ViewMessage } from '../src/protocol';
 import { closeMenu } from './menu';
+import { decorate } from './previews';
 import { childPointer, groupId, groupSize, span, valueElement } from './tree';
 
 const CARD_WIDTH = 260;
@@ -291,7 +292,8 @@ export class GraphView {
                     r.classList.add('port');
                     r.append(span('meta', summary(row)), span('arrow', this.open.has(e.child.id) ? '▾' : '▸'));
                 } else {
-                    r.append(span('punct', ':'), valueElement(row));
+                    const value = valueElement(row);
+                    r.append(span('punct', ':'), value, ...decorate(value, row, row.key));
                 }
                 if (row.id === this.active) { r.classList.add('active'); }
                 if (this.matches.has(row.id)) { r.classList.add(row.id === this.currentMatch ? 'current-match' : 'match'); }

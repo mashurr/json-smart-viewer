@@ -113,6 +113,14 @@ button.icon:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
 .null { color: var(--vscode-charts-purple); font-weight: 700; }
 .meta { color: var(--vscode-descriptionForeground); font-style: italic; }
 .error { color: var(--vscode-errorForeground); }
+.swatch {
+    display: inline-block; width: 0.8em; height: 0.8em; margin-right: 4px; vertical-align: -0.05em;
+    border: 1px solid var(--vscode-editorWidget-border, rgba(128,128,128,.5)); border-radius: 2px;
+}
+.url { text-decoration: underline dotted; text-underline-offset: 2px; }
+.url:hover { cursor: pointer; }
+.hint { flex-shrink: 0; color: var(--vscode-descriptionForeground); font-style: italic; font-family: var(--vscode-font-family, sans-serif); font-size: 0.9em; }
+.tools { display: inline-flex; gap: 2px; }
 .badge {
     flex-shrink: 0; padding: 0 6px; border-radius: 8px; line-height: 16px; font-size: 0.8em; font-style: normal;
     font-family: var(--vscode-font-family, sans-serif);

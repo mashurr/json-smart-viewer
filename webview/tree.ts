@@ -3,10 +3,13 @@
 
 import { Kind, PAGE, Page, PathStep, Row, ViewMessage, groupSize } from '../src/protocol';
 import { closeMenu } from './menu';
+import { decorate } from './previews';
 
 export const ROW_HEIGHT = 22;
 const OVERSCAN = 12;
 const INDENT = 16;
+// Expand all stops once about this many rows show
+const EXPAND_LIMIT = 10000;
 // How long a changed row stays highlighted after a rebuild
 const FLASH_MS = 600;
 // How long after a rebuild the view keeps the top row in place while pages load
@@ -278,6 +281,8 @@ export class Tree {
 
     refresh() {
         this.flatten();
+        // Expand-all opens one level per round; later levels open as their pages arrive
+        for (let round = 0; round < 64 && this.expandMore(); round++) { this.flatten(); }
         this.canvas.style.height = `${this.items.length * ROW_HEIGHT}px`;
         this.restorePlace();
         this.active = Math.min(this.active, Math.max(0, this.items.length - 1));
@@ -361,7 +366,8 @@ export class Tree {
         if (row.key !== undefined) {
             el.append(span('key', typeof row.key === 'number' ? String(row.key) : JSON.stringify(row.key)), span('punct', ':'));
         }
-        el.append(valueElement(row));
+        const value = valueElement(row);
+        el.append(value, ...decorate(value, row, row.key));
         if (isJsonString(row) && this.decoded.get(row.id) !== null) {
             const inner = this.decoded.get(row.id);
             el.append(span('badge', inner ? `JSON ${inner.kind === Kind.Array ? `[ ${inner.size!.toLocaleString()} ]` : `{ ${inner.size!.toLocaleString()} }`}` : 'JSON'));
@@ -378,6 +384,38 @@ export class Tree {
         }
         el.append(acts);
         return el;
+    }
+
+    /** Opens every object and array (not groups) until about EXPAND_LIMIT rows show; pages load as it goes */
+    expandAll() {
+        this.expanding = true;
+        this.refresh();
+        this.onStateChange();
+    }
+
+    collapseAll() {
+        this.expanding = false;
+        this.expanded.clear();
+        this.scroller.scrollTop = 0;
+        this.active = 0;
+        this.refresh();
+        this.onStateChange();
+    }
+    private expanding = false;
+
+    /** One round of expand-all: open what's loaded and still closed; stop at the limit or when done */
+    private expandMore(): boolean {
+        if (!this.expanding) { return false; }
+        let added = false;
+        for (const item of this.items) {
+            if (this.items.length >= EXPAND_LIMIT) { break; }
+            if (item.t === 'node' && isContainer(item.row) && item.row.size && !this.expanded.has(item.pointer)) {
+                this.expanded.add(item.pointer);
+                added = true;
+            }
+        }
+        if (!added && !this.items.some(i => i.t === 'loading')) { this.expanding = false; }
+        return added;
     }
 
     /** Highlights a row whose value differs from before the last rebuild */

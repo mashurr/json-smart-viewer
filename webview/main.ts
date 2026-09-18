@@ -72,6 +72,7 @@ function showViews() {
     treeEl.hidden = view !== 'tree' || !loaded;
     tableEl.hidden = tableBar.hidden = view !== 'table' || !loaded;
     graphEl.hidden = view !== 'graph' || !loaded;
+    document.getElementById('tree-tools')!.hidden = view !== 'tree';
 }
 function setView(next: View) {
     view = next;
@@ -90,6 +91,17 @@ function setView(next: View) {
 viewButtons.tree.addEventListener('click', () => setView('tree'));
 viewButtons.table.addEventListener('click', () => setView('table'));
 viewButtons.graph.addEventListener('click', () => setView('graph'));
+document.getElementById('expand-all')!.addEventListener('click', () => tree.expandAll());
+document.getElementById('collapse-all')!.addEventListener('click', () => tree.collapseAll());
+// Ctrl/Cmd+click on a link opens it (the extension checks it's http or https); a plain click selects as usual
+document.addEventListener('click', e => {
+    const link = (e.target as HTMLElement).closest<HTMLElement>('.url');
+    if (link?.dataset.url && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        e.stopPropagation();
+        vscode.postMessage({ type: 'openUrl', url: link.dataset.url });
+    }
+}, true);
 
 const toast = document.getElementById('toast')!;
 let toastTimer = 0;

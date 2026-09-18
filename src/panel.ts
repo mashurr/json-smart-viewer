@@ -295,6 +295,13 @@ export class ViewerPanel {
                 this.post({ type: 'rows', version: ix!.version, id: m.id, start: m.start, rows });
                 break;
             }
+            case 'openUrl': {
+                // Only web links; the page asks, the extension decides
+                let uri: vscode.Uri | undefined;
+                try { uri = vscode.Uri.parse(m.url, true); } catch { uri = undefined; }
+                if (uri && (uri.scheme === 'http' || uri.scheme === 'https') && /^https?:\/\//i.test(m.url)) { void vscode.env.openExternal(uri); }
+                break;
+            }
             case 'decode':
                 if (ix && m.version === ix.version) { this.decode(ix, m.id); }
                 break;
