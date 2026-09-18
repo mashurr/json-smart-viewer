@@ -2,6 +2,7 @@ import { HostMessage, TableSort, ViewMessage } from '../src/protocol';
 import { openMenu } from './menu';
 import { SearchBox } from './search';
 import { TableView } from './table';
+import { GraphState, GraphView } from './graph';
 import { Tree, TreeState } from './tree';
 
 interface ViewState extends TreeState {
@@ -10,8 +11,9 @@ interface ViewState extends TreeState {
     /** The table on show, by JSON Pointer, and its sort */
     table?: string;
     sort?: TableSort | null;
+    graph?: GraphState;
 }
-type View = 'tree' | 'table';
+type View = 'tree' | 'table' | 'graph';
 interface VsCodeApi {
     postMessage(m: ViewMessage): void;
     getState(): ViewState | undefined;
@@ -27,7 +29,7 @@ let saveTimer = 0;
 const isMac = navigator.platform.toUpperCase().includes('MAC');
 function saveState() {
     clearTimeout(saveTimer);
-    saveTimer = window.setTimeout(() => vscode.setState({ ...tree.state, query: search.value, view, table: table.pointer, sort: table.sortState }), 200);
+    saveTimer = window.setTimeout(() => vscode.setState({ ...tree.state, query: search.value, view, table: table.pointer, sort: table.sortState, graph: graph.state }), 200);
 }
 const tree = new Tree(treeEl, document.getElementById('rows')!, m => vscode.postMessage(m), saveState, {
     copy: (version, id, what) => vscode.postMessage({ type: 'copy', version, id, what }),
@@ -48,7 +50,8 @@ function rowMenu(x: number, y: number, version: number, id: number) {
 // Tree | Table
 const tableEl = document.getElementById('table')!;
 const tableBar = document.getElementById('tablebar')!;
-const viewButtons = { tree: document.getElementById('view-tree')!, table: document.getElementById('view-table')! };
+const graphEl = document.getElementById('graph')!;
+const viewButtons = { tree: document.getElementById('view-tree')!, table: document.getElementById('view-table')!, graph: document.getElementById('view-graph')! };
 let view: View = 'tree';
 let tablesAsked = -1;
 const table = new TableView(tableEl, {
@@ -60,14 +63,25 @@ const table = new TableView(tableEl, {
     openInTree: (version, id) => { setView('tree'); vscode.postMessage({ type: 'revealNode', version, id }); },
     onStateChange: saveState,
 });
+const graph = new GraphView(graphEl, m => vscode.postMessage(m), {
+    select: (version, id) => vscode.postMessage({ type: 'select', version, id }),
+    menu: rowMenu,
+    onStateChange: saveState,
+});
+function showViews() {
+    treeEl.hidden = view !== 'tree' || !loaded;
+    tableEl.hidden = tableBar.hidden = view !== 'table' || !loaded;
+    graphEl.hidden = view !== 'graph' || !loaded;
+}
 function setView(next: View) {
     view = next;
-    treeEl.hidden = next !== 'tree' || !loaded;
-    tableEl.hidden = tableBar.hidden = next !== 'table' || !loaded;
+    showViews();
     for (const [v, b] of Object.entries(viewButtons)) { b.setAttribute('aria-selected', String(v === next)); }
     if (next === 'table' && loaded) {
         if (tablesAsked !== version) { tablesAsked = version; vscode.postMessage({ type: 'tables', version }); }
         tableEl.focus({ preventScroll: true });
+    } else if (next === 'graph' && loaded) {
+        graphEl.focus({ preventScroll: true });
     } else if (loaded) {
         treeEl.focus({ preventScroll: true });
     }
@@ -75,6 +89,7 @@ function setView(next: View) {
 }
 viewButtons.tree.addEventListener('click', () => setView('tree'));
 viewButtons.table.addEventListener('click', () => setView('table'));
+viewButtons.graph.addEventListener('click', () => setView('graph'));
 
 const toast = document.getElementById('toast')!;
 let toastTimer = 0;
@@ -90,7 +105,7 @@ const search = new SearchBox(
     document.getElementById('prev') as HTMLButtonElement,
     document.getElementById('next') as HTMLButtonElement,
     m => vscode.postMessage(m),
-    (matches, current) => { tree.setMatches(matches, current); table.setMatches(matches, current); },
+    (matches, current) => { tree.setMatches(matches, current); table.setMatches(matches, current); graph.setMatches(matches, current); },
     () => treeEl.focus(),
 );
 const saved = vscode.getState();
@@ -98,6 +113,7 @@ if (saved) {
     tree.restore(saved);
     view = saved.view ?? 'tree';
     table.restoreSort(saved.sort ?? null);
+    if (saved.graph) { graph.restore(saved.graph); }
 }
 
 function showStatus(text: string, kind: '' | 'error' | 'note' = '') {
@@ -117,7 +133,7 @@ window.addEventListener('message', (e: MessageEvent<HostMessage>) => {
             showStatus(`Reading file… ${Math.floor((m.loaded / m.total) * 100)}%`);
             break;
         case 'invalid':
-            treeEl.hidden = tableEl.hidden = tableBar.hidden = true;
+            treeEl.hidden = tableEl.hidden = tableBar.hidden = graphEl.hidden = true;
             showStatus(m.line ? `Line ${m.line}, column ${m.column}: ${m.message}` : m.message, 'error');
             break;
         case 'editing':
@@ -128,7 +144,7 @@ window.addEventListener('message', (e: MessageEvent<HostMessage>) => {
             showStatus(`${m.line ? `Line ${m.line}, column ${m.column}: ` : ''}${m.message} — showing the last valid version.`, 'error');
             break;
         case 'reveal':
-            tree.reveal(m.version, m.path);
+            if (view === 'graph') { graph.reveal(m.version, m.path, m.pages); } else { tree.reveal(m.version, m.path, m.pages); }
             break;
         case 'document': {
             problem = false;
@@ -139,15 +155,17 @@ window.addEventListener('message', (e: MessageEvent<HostMessage>) => {
             loaded = true;
             version = m.version;
             tree.setDocument(m.version, m.root);
+            graph.setDocument(m.version, m.root);
             // The open table is found again by its pointer; ids change with every version
             const pointer = table.pointer ?? (first ? saved?.table : undefined);
             if ((first || changed) && view === 'table' && pointer !== undefined) { vscode.postMessage({ type: 'openTable', version, pointer }); }
             // Focus only on first load: later versions arrive while the user is typing in the editor
-            if (first) { setView(view); } else { treeEl.hidden = view !== 'tree'; tableEl.hidden = tableBar.hidden = view !== 'table'; }
+            if (first) { setView(view); } else { showViews(); }
             break;
         }
         case 'rows':
             tree.addRows(m.version, m.id, m.start, m.rows);
+            graph.addRows(m.version, m.id, m.start, m.rows);
             break;
         case 'matches':
             search.receive(m);

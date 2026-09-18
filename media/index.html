@@ -15,6 +15,7 @@
         <div class="views" role="tablist" aria-label="View">
             <button id="view-tree" role="tab" aria-selected="true" aria-controls="tree">Tree</button>
             <button id="view-table" role="tab" aria-selected="false" aria-controls="table">Table</button>
+            <button id="view-graph" role="tab" aria-selected="false" aria-controls="graph">Graph</button>
         </div>
         <div class="search" role="search">
             <input id="search" type="text" placeholder="Search keys and values" aria-label="Search keys and values" spellcheck="false" autocomplete="off">
@@ -33,6 +34,7 @@
         <span id="table-note" class="note" aria-live="polite"></span>
     </div>
     <div id="table" class="table" role="table" tabindex="0" aria-label="Table" hidden></div>
+    <div id="graph" class="graph" tabindex="0" aria-label="Graph" hidden></div>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
     <script nonce="{{NONCE}}" src="{{SCRIPT_URI}}"></script>
 </body>

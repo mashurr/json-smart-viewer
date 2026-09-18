@@ -1,7 +1,7 @@
 // Virtual tree: only rows on screen exist in the DOM, and children are fetched
 // from the extension a page at a time when their parent is opened.
 
-import { Kind, PAGE, PathStep, Row, ViewMessage } from '../src/protocol';
+import { Kind, PAGE, Page, PathStep, Row, ViewMessage, groupSize } from '../src/protocol';
 import { closeMenu } from './menu';
 
 export const ROW_HEIGHT = 22;
@@ -17,14 +17,9 @@ export function childPointer(parent: string, key: string | number): string {
     return parent + '/' + String(key).replace(/~/g, '~0').replace(/\//g, '~1');
 }
 // Group ids start with a character a pointer never starts with
-const groupId = (pointer: string, start: number, end: number) => `\u0001${pointer}\u0001${start}-${end}`;
+export const groupId = (pointer: string, start: number, end: number) => `\u0001${pointer}\u0001${start}-${end}`;
 
-/** Smallest power of PAGE that splits `n` children into at most PAGE groups */
-export function groupSize(n: number): number {
-    let g = PAGE;
-    while (Math.ceil(n / g) > PAGE) { g *= PAGE; }
-    return g;
-}
+export { groupSize };
 
 const isContainer = (r: Row) => r.kind === Kind.Object || r.kind === Kind.Array;
 const signature = (r: Row) => `${r.kind}|${r.text ?? ''}|${r.truncated ? 1 : 0}|${r.size ?? ''}`;
@@ -142,8 +137,10 @@ export class Tree {
     }
 
     /** Opens every parent of a path (the editor cursor moved) and makes it the active row */
-    reveal(version: number, path: PathStep[]) {
+    reveal(version: number, path: PathStep[], pages: Page[] = []) {
         if (version !== this.version) { return; }
+        // The pages along the path come with the reveal, so it needs no round-trip per level
+        for (const p of pages) { this.pages.set(`${p.id}:${p.start}`, p.rows); }
         this.pendingReveal = path;
         this.tryReveal();
     }

@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { HostMessage, Kind, PAGE, TableColumn, TableInfo, TableSort, ViewMessage } from './protocol';
+import { HostMessage, Kind, PAGE, Page, PathStep, TableColumn, TableInfo, TableSort, ViewMessage, leafRange } from './protocol';
 import { EditLog } from './editLog';
 import { Build, buildIndex } from './index/build';
 import { JsonIndex } from './index/query';
@@ -23,6 +23,9 @@ const CURSOR_MS = 100;
 const DISK_CHANGE_MS = 500;
 // A selection event this soon after the viewer selected the same range is the viewer's own
 const OWN_SELECTION_MS = 1000;
+// Reveals open at most this many levels; deeper paths stop at that ancestor (row ids are
+// paths, so opening 100,000 levels would build billions of characters)
+const MAX_REVEAL_DEPTH = 1000;
 // Clicking a value bigger than this selects only its start in the editor
 const MAX_SELECT_CHARS = 10000;
 // Copying a value bigger than this asks first
@@ -254,7 +257,7 @@ export class ViewerPanel {
                 break;
             case 'revealNode': {
                 if (!ix || m.version !== ix.version || !(m.id > 0 && m.id < ix.data.count)) { return; }
-                this.post({ type: 'reveal', version: ix.version, path: ix.pathAt(ix.hitStart(m.id)).path });
+                this.post(this.revealMessage(ix, ix.pathAt(ix.hitStart(m.id)).path));
                 break;
             }
             case 'children': {
@@ -319,7 +322,7 @@ export class ViewerPanel {
         const ix = this.index, document = this.document;
         if (!ix || !document) { return; }
         const { path: steps } = ix.pathAt(this.edits.backward(document.offsetAt(position)));
-        if (steps.length) { this.post({ type: 'reveal', version: ix.version, path: steps }); }
+        if (steps.length) { this.post(this.revealMessage(ix, steps)); }
     }
 
     private async copy(ix: JsonIndex, id: number, what: 'path' | 'pointer' | 'value') {
@@ -414,6 +417,22 @@ export class ViewerPanel {
             this.post({ type: 'matches', version: ix.version, query, reset, ...batch });
             reset = false;
         });
+    }
+
+    /** A reveal carries the pages the view needs along the path, however deep it is */
+    private revealMessage(ix: JsonIndex, steps: PathStep[]): HostMessage {
+        if (steps.length > MAX_REVEAL_DEPTH) {
+            this.post({ type: 'toast', text: `Nested ${steps.length.toLocaleString()} levels deep; showing the first ${MAX_REVEAL_DEPTH.toLocaleString()}` });
+            steps = steps.slice(0, MAX_REVEAL_DEPTH);
+        }
+        const pages: Page[] = [];
+        let parent = ix.root;
+        for (const step of steps) {
+            const { start, end } = leafRange(ix.size(parent), step.index);
+            pages.push({ id: parent, start, rows: ix.rows(parent, start, end - start) });
+            parent = ix.child(parent, step.index);
+        }
+        return { type: 'reveal', version: ix.version, path: steps, pages };
     }
 
     private post(m: HostMessage) {

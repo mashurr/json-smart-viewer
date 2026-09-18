@@ -152,6 +152,43 @@ button.icon:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
 .td.match { background: var(--vscode-editor-findMatchHighlightBackground); }
 .td.current-match { background: var(--vscode-editor-findMatchBackground); }
 
+/* Graph */
+.graph {
+    flex: 1; min-height: 0; position: relative; overflow: hidden; outline: none; cursor: grab;
+    background-image: radial-gradient(var(--vscode-editorWhitespace-foreground, rgba(128,128,128,.25)) 1px, transparent 1px);
+    background-size: 20px 20px;
+}
+.graph.dragging { cursor: grabbing; }
+.layer { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.edges { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
+.edges path { fill: none; stroke: var(--vscode-editorIndentGuide-activeBackground1, var(--vscode-descriptionForeground)); stroke-width: 1.5; }
+.card {
+    position: absolute; overflow: hidden; border-radius: 6px;
+    background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+    border: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border, rgba(128,128,128,.4)));
+    box-shadow: 0 1px 4px var(--vscode-widget-shadow, transparent);
+    line-height: 20px; cursor: default;
+}
+.card.has-active { border-color: var(--vscode-focusBorder); }
+.card-head {
+    display: flex; gap: 6px; align-items: center; height: 26px; padding: 0 8px; white-space: pre; overflow: hidden;
+    background: var(--vscode-sideBarSectionHeader-background, var(--vscode-editorGroupHeader-tabsBackground)); border-bottom: 1px solid var(--vscode-editorWidget-border, transparent);
+}
+.card-head .meta { margin-left: auto; }
+.card-row { display: flex; gap: 6px; height: 20px; padding: 0 8px; white-space: pre; overflow: hidden; }
+.card-row .value { flex: 1; min-width: 0; }
+.card-row.port, .card-row.more { cursor: pointer; }
+.card-row .arrow { margin-left: auto; color: var(--vscode-descriptionForeground); }
+.card-row:hover { background: var(--vscode-list-hoverBackground); }
+.card-row.active { background: var(--vscode-list-inactiveSelectionBackground); }
+.card-row.match .key, .card-row.match .value { background: var(--vscode-editor-findMatchHighlightBackground); }
+.card-row.current-match .key, .card-row.current-match .value { background: var(--vscode-editor-findMatchBackground); }
+.graph-controls {
+    position: absolute; right: 10px; bottom: 10px; z-index: 3; display: flex; gap: 2px; padding: 2px; border-radius: 4px;
+    background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-editorWidget-border, transparent);
+    font-family: var(--vscode-font-family, sans-serif);
+}
+
 /* Row actions, shown on hover and on the active row */
 .acts { margin-left: auto; display: none; gap: 2px; padding-left: 12px; font-family: var(--vscode-font-family, sans-serif); }
 .row:hover .acts, .row.active .acts { display: inline-flex; }

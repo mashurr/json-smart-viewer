@@ -55,6 +55,27 @@ export const PREVIEW_CHARS = 200;
 /** Most rows sent in one reply, and the size of the smallest group */
 export const PAGE = 100;
 
+/** Smallest power of PAGE that splits `n` children into at most PAGE groups (groups nest above PAGE²) */
+export function groupSize(n: number): number {
+    let g = PAGE;
+    while (Math.ceil(n / g) > PAGE) { g *= PAGE; }
+    return g;
+}
+
+/** The range of at most PAGE children, inside nested groups, that holds child `index` */
+export function leafRange(size: number, index: number): { start: number; end: number } {
+    let start = 0, end = size;
+    while (end - start > PAGE) {
+        const g = groupSize(end - start), s = start + Math.floor((index - start) / g) * g;
+        start = s;
+        end = Math.min(s + g, end);
+    }
+    return { start, end };
+}
+
+/** A page of rows, as in a 'rows' message */
+export interface Page { id: number; start: number; rows: Row[] }
+
 export type HostMessage =
     | { type: 'progress'; loaded: number; total: number }
     | { type: 'document'; version: number; fileName: string; root: Row }
@@ -65,7 +86,7 @@ export type HostMessage =
     /** The edited text is invalid; the last valid version stays on screen */
     | { type: 'problem'; message: string; line: number; column: number }
     /** Show the node at this path (the editor cursor moved, or a search match was chosen) */
-    | { type: 'reveal'; version: number; path: PathStep[] }
+    | { type: 'reveal'; version: number; path: PathStep[]; pages: Page[] }
     /** Matches for the current search; `reset` starts a new list */
     | { type: 'matches'; version: number; query: string; reset: boolean; ids: number[]; total: number; capped: boolean; done: boolean }
     /** A short confirmation to show, e.g. after copying */
