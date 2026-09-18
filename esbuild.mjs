@@ -14,7 +14,7 @@ const contexts = await Promise.all([
     // Extension host code runs in Node; `vscode` is provided at runtime
     esbuild.context({
         ...shared,
-        entryPoints: { extension: 'src/extension.ts', indexWorker: 'src/index/worker.ts' },
+        entryPoints: { extension: 'src/extension.ts', indexWorker: 'src/index/worker.ts', sortWorker: 'src/sortWorker.ts' },
         outdir: 'out',
         platform: 'node',
         format: 'cjs',

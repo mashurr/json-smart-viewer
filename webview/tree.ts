@@ -457,14 +457,14 @@ export class Tree {
     }
 }
 
-function span(cls: string, text: string): HTMLSpanElement {
+export function span(cls: string, text: string): HTMLSpanElement {
     const s = document.createElement('span');
     s.className = cls;
     s.textContent = text;
     return s;
 }
 
-function valueElement(row: Row): HTMLElement {
+export function valueElement(row: Pick<Row, 'kind' | 'text' | 'truncated' | 'size'>): HTMLElement {
     switch (row.kind) {
         case Kind.Object:
         case Kind.Array: {

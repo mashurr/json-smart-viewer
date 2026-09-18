@@ -2,13 +2,14 @@ import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { HostMessage, Kind, PAGE, ViewMessage } from './protocol';
+import { HostMessage, Kind, PAGE, TableColumn, TableInfo, TableSort, ViewMessage } from './protocol';
 import { EditLog } from './editLog';
 import { Build, buildIndex } from './index/build';
 import { JsonIndex } from './index/query';
 import { isScanError } from './index/scanner';
 import { Searcher } from './search';
 import { accessorPath, formatJson, jsonPointer } from './copy';
+import { SortJob, findTables, nodeByPointer, sortInWorker, sortKeys, tableColumns, tableInfo, tableRows, tableShape } from './table';
 
 // How often indexing progress is sent to the webview
 const PROGRESS_MS = 100;
@@ -61,6 +62,10 @@ export class ViewerPanel {
     private lineStarts: Int32Array | undefined;
     private ownSelection: { selection: vscode.Selection; at: number } | undefined;
     private readonly searcher = new Searcher();
+    /** The table on show: its columns and the row orders sorted so far */
+    private table: { version: number; info: TableInfo; columns: TableColumn[]; orders: Map<string, Int32Array> } | undefined;
+    private sortJob: { key: string; cancel(): void } | undefined;
+    private tablesRun = 0;
     private query = '';
     private readonly disposables: vscode.Disposable[] = [];
 
@@ -179,6 +184,8 @@ export class ViewerPanel {
             this.problemShown = false;
             this.lineStarts = undefined;
             this.index = new JsonIndex(text, result, version);
+            this.cancelSort();
+            this.table = undefined;
             this.post(this.documentMessage());
             // Matches are node ids, which change with every version
             if (this.query) { void this.runSearch(); }
@@ -226,6 +233,20 @@ export class ViewerPanel {
             case 'search':
                 this.query = m.query;
                 void this.runSearch();
+                break;
+            case 'tables': {
+                if (!ix || m.version !== ix.version) { return; }
+                const run = ++this.tablesRun;
+                void findTables(ix, () => run === this.tablesRun && this.index === ix).then(tables => {
+                    if (tables) { this.post({ type: 'tables', version: ix.version, tables }); }
+                });
+                break;
+            }
+            case 'openTable':
+                if (ix && m.version === ix.version) { this.openTable(ix, m.id, m.pointer); }
+                break;
+            case 'tableRows':
+                if (ix && m.version === ix.version && this.table?.info.id === m.id) { void this.tableRows(ix, m.start, m.count, m.sort); }
                 break;
             case 'copy':
                 if (!ix || m.version !== ix.version || !(m.id >= 0 && m.id < ix.data.count)) { return; }
@@ -329,6 +350,58 @@ export class ViewerPanel {
         this.post({ type: 'toast', text: toast });
     }
 
+    private openTable(ix: JsonIndex, id: number | undefined, pointer: string | undefined) {
+        const node = id !== undefined && id >= 0 && id < ix.data.count ? id : pointer !== undefined ? nodeByPointer(ix, pointer) : -1;
+        const shape = node >= 0 ? tableShape(ix, node) : undefined;
+        if (!shape) {
+            this.post({ type: 'toast', text: 'Only arrays and objects that contain objects open as a table' });
+            return;
+        }
+        this.cancelSort();
+        const info = tableInfo(ix, node, shape);
+        const { columns, more } = tableColumns(ix, node, shape);
+        this.table = { version: ix.version, info, columns, orders: new Map() };
+        this.post({ type: 'table', version: ix.version, info, columns, more });
+    }
+
+    private cancelSort() {
+        this.sortJob?.cancel();
+        this.sortJob = undefined;
+    }
+
+    /** Rows in the requested order; the first request for a sort computes the order (in a worker) */
+    private async tableRows(ix: JsonIndex, start: number, count: number, sort: TableSort | null) {
+        const table = this.table!;
+        const key = sort ? `${sort.column}:${sort.desc ? 'desc' : 'asc'}` : '';
+        let order: Int32Array | undefined;
+        if (sort) {
+            order = table.orders.get(key);
+            if (!order) {
+                if (this.sortJob?.key === key) { return; }
+                const column = table.columns[sort.column];
+                if (!column) { return; }
+                this.cancelSort();
+                let cancelled = false, job: SortJob | undefined;
+                this.sortJob = { key, cancel: () => { cancelled = true; job?.cancel(); } };
+                const big = table.info.rows > 50_000;
+                if (big) { this.post({ type: 'tableStatus', text: `Sorting ${table.info.rows.toLocaleString()} rows…` }); }
+                const keys = await sortKeys(ix, table.info.id, table.info.shape, column, () => !cancelled);
+                if (!keys || cancelled) { return; }
+                job = sortInWorker(this.context.extensionPath, keys, sort.desc);
+                order = await job.result.catch(() => undefined);
+                if (!order || cancelled || this.table !== table) { return; }
+                this.sortJob = undefined;
+                table.orders.set(key, order);
+                if (big) { this.post({ type: 'tableStatus', text: '' }); }
+                // The page asked while sorting; it asks again for what's on screen
+                this.post({ type: 'tableRows', version: ix.version, id: table.info.id, start: -1, sort: key, rows: [] });
+                return;
+            }
+        }
+        const rows = tableRows(ix, table.info.id, table.info.shape, table.columns, order, start, Math.min(count, PAGE));
+        this.post({ type: 'tableRows', version: ix.version, id: table.info.id, start, sort: key, rows });
+    }
+
     private async runSearch() {
         const ix = this.index, query = this.query;
         if (!ix || !query) {
@@ -362,6 +435,7 @@ export class ViewerPanel {
         ViewerPanel.panels.delete(this.uri.toString());
         this.build?.cancel();
         this.searcher.cancel();
+        this.cancelSort();
         clearTimeout(this.rebuildTimer);
         clearTimeout(this.problemTimer);
         clearTimeout(this.cursorTimer);

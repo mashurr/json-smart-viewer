@@ -24,6 +24,33 @@ export interface PathStep {
     index: number;
 }
 
+/** A container that reads as a table */
+export interface TableInfo {
+    id: number;
+    /** rows: array of objects; map: object of objects (keys become a column); mixed: objects and other values */
+    shape: 'rows' | 'map' | 'mixed';
+    rows: number;
+    /** Where it is, as `orders[3].items` and as a JSON Pointer (to find it again after a rebuild) */
+    path: string;
+    pointer: string;
+}
+export interface TableColumn {
+    label: string;
+    /** The object key this column shows */
+    key?: string;
+    /** 'key': the map key; 'value': a row that isn't an object */
+    special?: 'key' | 'value';
+}
+export type TableCell = Omit<Row, 'key'>;
+export interface TableRow {
+    /** Position in the container, and the row's node */
+    index: number;
+    id: number;
+    /** null where the row has no value for the column */
+    cells: (TableCell | null)[];
+}
+export interface TableSort { column: number; desc: boolean }
+
 export const PREVIEW_CHARS = 200;
 /** Most rows sent in one reply, and the size of the smallest group */
 export const PAGE = 100;
@@ -42,7 +69,14 @@ export type HostMessage =
     /** Matches for the current search; `reset` starts a new list */
     | { type: 'matches'; version: number; query: string; reset: boolean; ids: number[]; total: number; capped: boolean; done: boolean }
     /** A short confirmation to show, e.g. after copying */
-    | { type: 'toast'; text: string };
+    | { type: 'toast'; text: string }
+    /** Tables found in the document, biggest first */
+    | { type: 'tables'; version: number; tables: TableInfo[] }
+    /** The table to show, with its columns (`more`: columns left out) */
+    | { type: 'table'; version: number; info: TableInfo; columns: TableColumn[]; more: number }
+    | { type: 'tableRows'; version: number; id: number; start: number; sort: string; rows: TableRow[] }
+    /** Shown while a big table sorts */
+    | { type: 'tableStatus'; text: string };
 
 export type ViewMessage =
     | { type: 'ready' }
@@ -54,4 +88,9 @@ export type ViewMessage =
     /** Show this node in the viewer (a search match) */
     | { type: 'revealNode'; version: number; id: number }
     /** Copy a node's path, JSON Pointer or value to the clipboard */
-    | { type: 'copy'; version: number; id: number; what: 'path' | 'pointer' | 'value' };
+    | { type: 'copy'; version: number; id: number; what: 'path' | 'pointer' | 'value' }
+    /** List the tables in the document */
+    | { type: 'tables'; version: number }
+    /** Show a container as a table, by node id or (after a rebuild) by JSON Pointer */
+    | { type: 'openTable'; version: number; id?: number; pointer?: string }
+    | { type: 'tableRows'; version: number; id: number; start: number; count: number; sort: TableSort | null };

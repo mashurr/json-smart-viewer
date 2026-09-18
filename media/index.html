@@ -12,6 +12,10 @@
 </head>
 <body>
     <div class="toolbar">
+        <div class="views" role="tablist" aria-label="View">
+            <button id="view-tree" role="tab" aria-selected="true" aria-controls="tree">Tree</button>
+            <button id="view-table" role="tab" aria-selected="false" aria-controls="table">Table</button>
+        </div>
         <div class="search" role="search">
             <input id="search" type="text" placeholder="Search keys and values" aria-label="Search keys and values" spellcheck="false" autocomplete="off">
             <span id="count" class="count" aria-live="polite"></span>
@@ -23,6 +27,12 @@
     <div id="tree" class="tree" role="tree" tabindex="0" aria-label="JSON tree">
         <div id="rows" class="rows"></div>
     </div>
+    <div id="tablebar" class="tablebar" hidden>
+        <label for="table-select">Table</label>
+        <select id="table-select"></select>
+        <span id="table-note" class="note" aria-live="polite"></span>
+    </div>
+    <div id="table" class="table" role="table" tabindex="0" aria-label="Table" hidden></div>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
     <script nonce="{{NONCE}}" src="{{SCRIPT_URI}}"></script>
 </body>
