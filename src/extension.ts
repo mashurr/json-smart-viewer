@@ -1,43 +1,41 @@
-// extension.js
-const vscode = require('vscode');
-const path = require('path');
-const fs = require('fs');
+import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 
-function activate(context) {
-    let disposable = vscode.commands.registerCommand('json-smart-viewer.show', () => {
+export function activate(context: vscode.ExtensionContext) {
+    const disposable = vscode.commands.registerCommand('json-smart-viewer.show', () => {
         const editor = vscode.window.activeTextEditor;
         if (!editor || editor.document.languageId !== 'json') {
             vscode.window.showInformationMessage('This is not a JSON file.');
             return;
         }
 
-        let jsonData;
+        let jsonData: unknown;
         try {
             jsonData = JSON.parse(editor.document.getText());
         } catch (e) {
-            vscode.window.showErrorMessage(`Invalid JSON: ${e.message}`);
+            vscode.window.showErrorMessage(`Invalid JSON: ${e instanceof Error ? e.message : String(e)}`);
             return;
         }
 
+        const mediaPath = path.join(context.extensionPath, 'media');
         const panel = vscode.window.createWebviewPanel(
-            'jsonSmartViewer', 
-            'JSON Smart View', 
-            vscode.ViewColumn.One, 
-            { 
+            'jsonSmartViewer',
+            'JSON Smart View',
+            vscode.ViewColumn.One,
+            {
                 enableScripts: true,
-                localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'src'))]
+                localResourceRoots: [vscode.Uri.file(mediaPath)]
             }
         );
 
         // Load the HTML template
-        const htmlPath = path.join(context.extensionPath, 'src', 'index.html');
-        let htmlContent = fs.readFileSync(htmlPath, 'utf8');
-        
+        let htmlContent = fs.readFileSync(path.join(mediaPath, 'index.html'), 'utf8');
+
         // Replace placeholders with actual content
         const nonce = getNonce();
         htmlContent = htmlContent
             .replace(/{{NONCE}}/g, nonce)
-            .replace('{{JSON_DATA}}', JSON.stringify(jsonData))
             .replace('{{ESCAPED_JSON_HTML}}', generateJsonHtml(jsonData));
 
         panel.webview.html = htmlContent;
@@ -46,16 +44,16 @@ function activate(context) {
     context.subscriptions.push(disposable);
 }
 
-function generateJsonHtml(jsonData) {
-    function jsonToHtml(data, depth = 0) {
-        if (data === null) return '<span class="text-purple-300 font-bold">null</span>';
-        if (typeof data === 'string') return `<span class="text-green-300">"${escapeHtml(data)}"</span>`;
-        if (typeof data === 'number') return `<span class="text-blue-300">${data}</span>`;
-        if (typeof data === 'boolean') return `<span class="text-yellow-300 font-bold">${data}</span>`;
+function generateJsonHtml(jsonData: unknown): string {
+    function jsonToHtml(data: unknown, depth = 0): string {
+        if (data === null) { return '<span class="text-purple-300 font-bold">null</span>'; }
+        if (typeof data === 'string') { return `<span class="text-green-300">"${escapeHtml(data)}"</span>`; }
+        if (typeof data === 'number') { return `<span class="text-blue-300">${data}</span>`; }
+        if (typeof data === 'boolean') { return `<span class="text-yellow-300 font-bold">${data}</span>`; }
 
         const isArray = Array.isArray(data);
-        const entries = Object.entries(data);
-        
+        const entries = Object.entries(data as object);
+
         if (entries.length === 0) {
             return `<span class="text-white">${isArray ? '[]' : '{}'}</span>`;
         }
@@ -65,13 +63,13 @@ function generateJsonHtml(jsonData) {
             const comma = isLast ? '' : '<span class="text-white">,</span>';
             const isCollapsible = value !== null && typeof value === 'object';
             const indent = `ml-${Math.min(depth * 4, 20)}`;
-            
+
             if (isCollapsible) {
                 const itemCount = Array.isArray(value) ? value.length : Object.keys(value).length;
-                const preview = itemCount === 0 ? 
-                    (Array.isArray(value) ? '[]' : '{}') : 
+                const preview = itemCount === 0 ?
+                    (Array.isArray(value) ? '[]' : '{}') :
                     `${itemCount} item${itemCount !== 1 ? 's' : ''}`;
-                
+
                 return `
                     <div class="json-item ${indent}">
                         <div class="json-toggle flex items-center gap-1 py-1 px-2 rounded hover:bg-white/20 cursor-pointer group">
@@ -113,7 +111,7 @@ function generateJsonHtml(jsonData) {
         ` : items;
     }
 
-    function escapeHtml(text) {
+    function escapeHtml(text: string): string {
         return String(text)
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
@@ -125,7 +123,7 @@ function generateJsonHtml(jsonData) {
     return jsonToHtml(jsonData);
 }
 
-function getNonce() {
+function getNonce(): string {
     let text = '';
     const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuv8901';
     for (let i = 0; i < 32; i++) {
@@ -134,9 +132,4 @@ function getNonce() {
     return text;
 }
 
-function deactivate() {}
-
-module.exports = {
-    activate,
-    deactivate
-};
+export function deactivate() {}

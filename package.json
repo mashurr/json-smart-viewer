@@ -19,7 +19,7 @@
   "activationEvents": [
     "onLanguage:json"
   ],
-  "main": "./src/extension.js",
+  "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
@@ -38,12 +38,17 @@
     }
   },
   "scripts": {
-    "lint": "eslint ."
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src"
   },
   "devDependencies": {
     "@types/node": "20.x",
     "@types/vscode": "^1.90.0",
-    "eslint": "^9.25.1"
+    "eslint": "^9.25.1",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.0"
   },
   "license": "MIT"
 }
