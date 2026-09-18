@@ -11,6 +11,14 @@
     <link rel="stylesheet" href="{{STYLE_URI}}">
 </head>
 <body>
+    <div class="toolbar">
+        <div class="search" role="search">
+            <input id="search" type="text" placeholder="Search keys and values" aria-label="Search keys and values" spellcheck="false" autocomplete="off">
+            <span id="count" class="count" aria-live="polite"></span>
+            <button id="prev" class="icon" title="Previous match (Shift+Enter)" aria-label="Previous match">&#8593;</button>
+            <button id="next" class="icon" title="Next match (Enter)" aria-label="Next match">&#8595;</button>
+        </div>
+    </div>
     <div id="status" class="status" role="status" aria-live="polite"></div>
     <div id="tree" class="tree" role="tree" tabindex="0" aria-label="JSON tree">
         <div id="rows" class="rows"></div>

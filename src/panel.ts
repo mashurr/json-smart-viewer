@@ -7,6 +7,7 @@ import { EditLog } from './editLog';
 import { Build, buildIndex } from './index/build';
 import { JsonIndex } from './index/query';
 import { isScanError } from './index/scanner';
+import { Searcher } from './search';
 
 // How often indexing progress is sent to the webview
 const PROGRESS_MS = 100;
@@ -56,6 +57,8 @@ export class ViewerPanel {
     private watcher: vscode.FileSystemWatcher | undefined;
     private lineStarts: Int32Array | undefined;
     private ownSelection: { selection: vscode.Selection; at: number } | undefined;
+    private readonly searcher = new Searcher();
+    private query = '';
     private readonly disposables: vscode.Disposable[] = [];
 
     /** `document` is absent for files VS Code doesn't share with extensions (over 50 MB) or that aren't open */
@@ -174,6 +177,8 @@ export class ViewerPanel {
             this.lineStarts = undefined;
             this.index = new JsonIndex(text, result, version);
             this.post(this.documentMessage());
+            // Matches are node ids, which change with every version
+            if (this.query) { void this.runSearch(); }
         }, (e: unknown) => this.fail(`Could not read the file: ${e instanceof Error ? e.message : String(e)}`, 0, 0));
     }
 
@@ -215,6 +220,15 @@ export class ViewerPanel {
                 else if (this.progress) { this.post(this.progress); }
                 if (this.problemShown && this.problem) { this.post(this.problem); }
                 break;
+            case 'search':
+                this.query = m.query;
+                void this.runSearch();
+                break;
+            case 'revealNode': {
+                if (!ix || m.version !== ix.version || !(m.id > 0 && m.id < ix.data.count)) { return; }
+                this.post({ type: 'reveal', version: ix.version, path: ix.pathAt(ix.hitStart(m.id)).path });
+                break;
+            }
             case 'children': {
                 if (!ix || m.version !== ix.version || !(m.id >= 0 && m.id < ix.data.count)) { return; }
                 const count = Math.min(Math.max(0, m.count), PAGE);
@@ -280,6 +294,20 @@ export class ViewerPanel {
         if (steps.length) { this.post({ type: 'reveal', version: ix.version, path: steps }); }
     }
 
+    private async runSearch() {
+        const ix = this.index, query = this.query;
+        if (!ix || !query) {
+            this.searcher.cancel();
+            if (ix) { this.post({ type: 'matches', version: ix.version, query, reset: true, ids: [], total: 0, capped: false, done: true }); }
+            return;
+        }
+        let reset = true;
+        await this.searcher.search(ix, query, batch => {
+            this.post({ type: 'matches', version: ix.version, query, reset, ...batch });
+            reset = false;
+        });
+    }
+
     private post(m: HostMessage) {
         if (this.viewReady) { void this.panel.webview.postMessage(m); }
     }
@@ -298,6 +326,7 @@ export class ViewerPanel {
     private dispose() {
         ViewerPanel.panels.delete(this.uri.toString());
         this.build?.cancel();
+        this.searcher.cancel();
         clearTimeout(this.rebuildTimer);
         clearTimeout(this.problemTimer);
         clearTimeout(this.cursorTimer);

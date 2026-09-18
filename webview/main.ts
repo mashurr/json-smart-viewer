@@ -1,10 +1,12 @@
 import { HostMessage, ViewMessage } from '../src/protocol';
+import { SearchBox } from './search';
 import { Tree, TreeState } from './tree';
 
+interface ViewState extends TreeState { query?: string }
 interface VsCodeApi {
     postMessage(m: ViewMessage): void;
-    getState(): TreeState | undefined;
-    setState(s: TreeState): void;
+    getState(): ViewState | undefined;
+    setState(s: ViewState): void;
 }
 declare function acquireVsCodeApi(): VsCodeApi;
 
@@ -15,8 +17,17 @@ const treeEl = document.getElementById('tree')!;
 let saveTimer = 0;
 const tree = new Tree(treeEl, document.getElementById('rows')!, m => vscode.postMessage(m), () => {
     clearTimeout(saveTimer);
-    saveTimer = window.setTimeout(() => vscode.setState(tree.state), 200);
+    saveTimer = window.setTimeout(() => vscode.setState({ ...tree.state, query: search.value }), 200);
 });
+const search = new SearchBox(
+    document.getElementById('search') as HTMLInputElement,
+    document.getElementById('count')!,
+    document.getElementById('prev') as HTMLButtonElement,
+    document.getElementById('next') as HTMLButtonElement,
+    m => vscode.postMessage(m),
+    (matches, current) => tree.setMatches(matches, current),
+    () => treeEl.focus(),
+);
 const saved = vscode.getState();
 if (saved) { tree.restore(saved); }
 
@@ -28,6 +39,7 @@ function showStatus(text: string, kind: '' | 'error' | 'note' = '') {
 // An edit that made the file invalid; stays until a valid version arrives
 let problem = false;
 let loaded = false;
+let version = -1;
 
 window.addEventListener('message', (e: MessageEvent<HostMessage>) => {
     const m = e.data;
@@ -53,7 +65,9 @@ window.addEventListener('message', (e: MessageEvent<HostMessage>) => {
             problem = false;
             showStatus('');
             const first = treeEl.hidden || !loaded;
+            if (loaded && m.version !== version) { search.newVersion(); }
             loaded = true;
+            version = m.version;
             treeEl.hidden = false;
             tree.setDocument(m.version, m.root);
             // Only on first load: later versions arrive while the user is typing in the editor
@@ -63,8 +77,12 @@ window.addEventListener('message', (e: MessageEvent<HostMessage>) => {
         case 'rows':
             tree.addRows(m.version, m.id, m.start, m.rows);
             break;
+        case 'matches':
+            search.receive(m);
+            break;
     }
 });
 
 showStatus('Reading file…');
 vscode.postMessage({ type: 'ready' });
+if (saved?.query) { search.restore(saved.query); }

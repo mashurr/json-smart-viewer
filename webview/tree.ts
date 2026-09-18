@@ -84,6 +84,15 @@ export class Tree {
     private before: Map<string, string> | undefined;
     private readonly changedAt = new Map<string, number>();
     private pendingReveal: PathStep[] | undefined;
+    private matches: ReadonlySet<number> = new Set();
+    private currentMatch: number | undefined;
+
+    /** Search matches to highlight, by node id */
+    setMatches(matches: ReadonlySet<number>, current: number | undefined) {
+        this.matches = matches;
+        this.currentMatch = current;
+        this.paint();
+    }
 
     setDocument(version: number, root: Row) {
         if (version !== this.version) {
@@ -293,6 +302,7 @@ export class Tree {
         }
         const row = item.row;
         this.markChanged(el, item.pointer, row);
+        if (this.matches.has(row.id)) { el.classList.add(row.id === this.currentMatch ? 'current-match' : 'match'); }
         const openable = isContainer(row) && !!row.size;
         if (openable) {
             const open = this.expanded.has(item.pointer);

@@ -15,6 +15,54 @@ body {
 
 [hidden] { display: none !important; }
 
+.toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    align-items: center;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--vscode-panel-border, var(--vscode-editorGroup-border, transparent));
+    font-family: var(--vscode-font-family, sans-serif);
+    font-size: var(--vscode-font-size, 13px);
+}
+.search {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex: 1 1 220px;
+    max-width: 420px;
+    padding: 0 2px 0 6px;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border, transparent);
+    border-radius: 2px;
+}
+.search:focus-within { border-color: var(--vscode-focusBorder); }
+.search input {
+    flex: 1;
+    min-width: 60px;
+    padding: 3px 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+}
+.search input::placeholder { color: var(--vscode-input-placeholderForeground); }
+.search input.no-results { color: var(--vscode-errorForeground); }
+.count { color: var(--vscode-descriptionForeground); white-space: nowrap; font-variant-numeric: tabular-nums; padding: 0 4px; }
+button.icon {
+    border: 0;
+    border-radius: 3px;
+    padding: 1px 6px;
+    background: transparent;
+    color: var(--vscode-icon-foreground, inherit);
+    font: inherit;
+    cursor: pointer;
+}
+button.icon:hover { background: var(--vscode-toolbar-hoverBackground); }
+button.icon:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
+
 .status {
     padding: 6px 12px;
     color: var(--vscode-descriptionForeground);
@@ -65,6 +113,13 @@ body {
 .null { color: var(--vscode-charts-purple); font-weight: 700; }
 .meta { color: var(--vscode-descriptionForeground); font-style: italic; }
 .value { overflow: hidden; text-overflow: ellipsis; }
+
+/* Search matches, in the editor's find colors */
+.row.match .key, .row.match .value { background: var(--vscode-editor-findMatchHighlightBackground); }
+.row.current-match .key, .row.current-match .value {
+    background: var(--vscode-editor-findMatchBackground);
+    outline: 1px solid var(--vscode-editor-findMatchBorder, transparent);
+}
 
 /* Rows whose value changed in the last rebuild */
 .row.changed { animation: changed 600ms ease-out both; }
