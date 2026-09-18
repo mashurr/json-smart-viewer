@@ -11,10 +11,10 @@
     <link rel="stylesheet" href="{{STYLE_URI}}">
 </head>
 <body>
-    <div id="json-container">
-        {{ESCAPED_JSON_HTML}}
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+    <div id="tree" class="tree" role="tree" tabindex="0" aria-label="JSON tree">
+        <div id="rows" class="rows"></div>
     </div>
-
     <script nonce="{{NONCE}}" src="{{SCRIPT_URI}}"></script>
 </body>
 </html>

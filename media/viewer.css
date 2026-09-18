@@ -1,17 +1,60 @@
 *, *::before, *::after { box-sizing: border-box; }
 
+html, body { height: 100%; }
+
 body {
     margin: 0;
-    padding: 1.5rem;
-    min-height: 100vh;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
     background: var(--vscode-editor-background);
     color: var(--vscode-editor-foreground);
     font-family: var(--vscode-editor-font-family, monospace);
     font-size: var(--vscode-editor-font-size, 14px);
-    line-height: 1.625;
 }
 
-#json-container { overflow-x: auto; }
+[hidden] { display: none !important; }
+
+.status {
+    padding: 6px 12px;
+    color: var(--vscode-descriptionForeground);
+    font-family: var(--vscode-font-family, sans-serif);
+    font-size: var(--vscode-font-size, 13px);
+}
+.status.error {
+    color: var(--vscode-errorForeground);
+    background: var(--vscode-inputValidation-errorBackground);
+    border-bottom: 1px solid var(--vscode-inputValidation-errorBorder, transparent);
+}
+
+.tree { flex: 1; min-height: 0; overflow: auto; position: relative; outline: none; }
+.rows { position: relative; min-width: 100%; }
+
+.row {
+    position: absolute;
+    left: 0;
+    min-width: 100%;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-right: 12px;
+    white-space: pre;
+    line-height: 22px;
+    cursor: default;
+}
+.row:hover { background: var(--vscode-list-hoverBackground); }
+.row.active { background: var(--vscode-list-inactiveSelectionBackground); }
+.tree:focus .row.active {
+    background: var(--vscode-list-activeSelectionBackground);
+    color: var(--vscode-list-activeSelectionForeground);
+    outline: 1px solid var(--vscode-list-focusOutline, transparent);
+    outline-offset: -1px;
+}
+
+.twist { width: 12px; flex-shrink: 0; text-align: center; color: var(--vscode-icon-foreground, currentColor); transition: transform 0.15s ease; }
+.twist.open { transform: rotate(90deg); }
+.twist.leaf { visibility: hidden; }
 
 /* Value colors follow the active theme's debug view colors */
 .key { color: var(--vscode-debugTokenExpression-name); font-weight: 600; }
@@ -19,30 +62,7 @@ body {
 .num { color: var(--vscode-debugTokenExpression-number); }
 .bool { color: var(--vscode-debugTokenExpression-boolean); font-weight: 700; }
 .null { color: var(--vscode-charts-purple); font-weight: 700; }
-.count { color: var(--vscode-descriptionForeground); font-style: italic; font-weight: 500; font-size: 0.875em; }
+.meta { color: var(--vscode-descriptionForeground); font-style: italic; }
+.value { overflow: hidden; text-overflow: ellipsis; }
 
-.bracket { padding: 0 0.5rem; font-weight: 700; }
-.root-bracket { font-size: 1.125em; }
-.json-root > .root-bracket:first-child { margin-bottom: 0.5rem; }
-.json-root > .root-bracket:last-child { margin-top: 0.5rem; }
-
-.json-toggle, .json-leaf { display: flex; align-items: center; padding: 0.25rem 0.5rem; }
-.json-toggle { gap: 0.25rem; border-radius: 0.25rem; cursor: pointer; }
-.json-toggle:hover { background: var(--vscode-list-hoverBackground); }
-.json-leaf { gap: 0.5rem; }
-
-.json-arrow { display: block; flex-shrink: 0; width: 0.75rem; height: 0.75rem; transition: transform 0.2s ease; }
-.json-toggle[data-collapsed="false"] .json-arrow { transform: rotate(90deg); }
-.json-toggle[data-collapsed="false"] .json-preview { display: none; }
-
-.json-content { display: none; margin-left: 1rem; }
-.json-toggle[data-collapsed="false"] + .json-content { display: block; }
-.json-children { margin-left: 0.5rem; }
-
-/* Indentation grows with depth; leaves sit past the arrow column */
-.d1 { margin-left: 1rem; }
-.d2 { margin-left: 2rem; }
-.d3 { margin-left: 3rem; }
-.d4 { margin-left: 4rem; }
-.d5 { margin-left: 5rem; }
-.json-leaf.d0, .json-leaf.d1 { margin-left: 1.5rem; }
+@media (prefers-reduced-motion: reduce) { .twist { transition: none; } }
