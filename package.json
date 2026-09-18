@@ -1,8 +1,8 @@
 {
   "name": "json-smart-viewer",
   "displayName": "JSON Smart Viewer",
-  "description": "An interactive, collapsible tree viewer for JSON files.",
-  "version": "0.0.1",
+  "description": "Explore big or messy JSON as a tree, table or graph, linked to your editor. Fast on files of hundreds of MB.",
+  "version": "0.1.0",
   "publisher": "mashurr",
   "icon": "icon.png",
   "repository": {
@@ -15,6 +15,18 @@
   "categories": [
     "Other",
     "Visualization"
+  ],
+  "keywords": [
+    "json",
+    "viewer",
+    "json viewer",
+    "tree",
+    "table",
+    "graph",
+    "large files",
+    "jsonl",
+    "jsonc",
+    "explorer"
   ],
   "activationEvents": [
     "onLanguage:json",

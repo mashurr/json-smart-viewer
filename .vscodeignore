@@ -1,3 +1,5 @@
+images/**
+icon.svg
 .vscode/**
 node_modules/**
 src/**
