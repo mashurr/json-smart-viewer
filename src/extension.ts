@@ -40,7 +40,8 @@ export function activate(context: vscode.ExtensionContext) {
             .replace(/{{NONCE}}/g, nonce)
             .replace('{{CSP_SOURCE}}', panel.webview.cspSource)
             .replace('{{STYLE_URI}}', styleUri.toString())
-            .replace('{{ESCAPED_JSON_HTML}}', generateJsonHtml(jsonData));
+            // A replacer function keeps `$&`-style patterns in the JSON from being expanded
+            .replace('{{ESCAPED_JSON_HTML}}', () => generateJsonHtml(jsonData));
 
         panel.webview.html = htmlContent;
     });
