@@ -164,8 +164,6 @@ button.icon:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
 .table:focus .trow.active { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
 .td.nested { cursor: pointer; text-decoration: underline dotted; }
 .trow.stale { opacity: 0.5; }
-.td.match { background: var(--vscode-editor-findMatchHighlightBackground); }
-.td.current-match { background: var(--vscode-editor-findMatchBackground); }
 
 /* Graph */
 .graph {
@@ -196,8 +194,6 @@ button.icon:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
 .card-row .arrow { margin-left: auto; color: var(--vscode-descriptionForeground); }
 .card-row:hover { background: var(--vscode-list-hoverBackground); }
 .card-row.active { background: var(--vscode-list-inactiveSelectionBackground); }
-.card-row.match .key, .card-row.match .value { background: var(--vscode-editor-findMatchHighlightBackground); }
-.card-row.current-match .key, .card-row.current-match .value { background: var(--vscode-editor-findMatchBackground); }
 .graph-controls {
     position: absolute; right: 10px; bottom: 10px; z-index: 3; display: flex; gap: 2px; padding: 2px; border-radius: 4px;
     background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-editorWidget-border, transparent);
@@ -272,11 +268,16 @@ button.icon:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
     white-space: nowrap;
 }
 
-/* Search matches, in the editor's find colors */
-.row.match .key, .row.match .value { background: var(--vscode-editor-findMatchHighlightBackground); }
-.row.current-match .key, .row.current-match .value {
+/* Search matches, in the editor's find colors. High contrast themes use borders instead of backgrounds. */
+.row.match .key, .row.match .value, .card-row.match .key, .card-row.match .value, .td.match {
+    background: var(--vscode-editor-findMatchHighlightBackground);
+    outline: 1px dotted var(--vscode-editor-findMatchHighlightBorder, transparent);
+    outline-offset: -1px;
+}
+.row.current-match .key, .row.current-match .value, .card-row.current-match .key, .card-row.current-match .value, .td.current-match {
     background: var(--vscode-editor-findMatchBackground);
-    outline: 1px solid var(--vscode-editor-findMatchBorder, transparent);
+    outline: 2px solid var(--vscode-editor-findMatchBorder, transparent);
+    outline-offset: -2px;
 }
 
 /* Rows whose value changed in the last rebuild */
