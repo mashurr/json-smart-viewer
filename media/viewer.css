@@ -163,6 +163,7 @@ button.icon:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
 .trow.active { background: var(--vscode-list-inactiveSelectionBackground); }
 .table:focus .trow.active { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
 .td.nested { cursor: pointer; text-decoration: underline dotted; }
+.trow.stale { opacity: 0.5; }
 .td.match { background: var(--vscode-editor-findMatchHighlightBackground); }
 .td.current-match { background: var(--vscode-editor-findMatchBackground); }
 

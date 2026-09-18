@@ -117,6 +117,7 @@ export class TableView {
         if (start >= 0) {
             this.pages.set(start, rows);
             this.requested.delete(start);
+            this.stale = undefined;
         } else {
             // A sort finished: requests made while it ran weren't answered, so ask again for what's on screen
             this.requested.clear();
@@ -172,7 +173,10 @@ export class TableView {
             const pageStart = Math.floor(r / PAGE) * PAGE;
             const page = this.pages.get(pageStart);
             if (!page) { this.request(pageStart); }
-            frag.append(this.renderRow(r, page?.[r - pageStart], cols));
+            const old = page ? undefined : this.stale?.get(pageStart)?.[r - pageStart];
+            const el = this.renderRow(r, page?.[r - pageStart] ?? old, cols);
+            if (old) { el.classList.add('stale'); }
+            frag.append(el);
         }
         this.canvas.replaceChildren(frag);
     }
@@ -282,11 +286,14 @@ export class TableView {
         if (this.sort?.column !== column) { this.sort = { column, desc: false }; }
         else if (!this.sort.desc) { this.sort = { column, desc: true }; }
         else { this.sort = null; }
+        // Keep showing the old rows (dimmed) until the first rows in the new order arrive
+        this.stale = new Map(this.pages);
         this.pages.clear();
         this.requested.clear();
         this.paint();
         this.actions.onStateChange();
     }
+    private stale: Map<number, TableRow[]> | undefined;
 
     private resize(e: PointerEvent, i: number) {
         e.preventDefault();
