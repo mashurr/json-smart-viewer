@@ -114,6 +114,74 @@ button.icon:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
 .meta { color: var(--vscode-descriptionForeground); font-style: italic; }
 .value { overflow: hidden; text-overflow: ellipsis; }
 
+/* Row actions, shown on hover and on the active row */
+.acts { margin-left: auto; display: none; gap: 2px; padding-left: 12px; font-family: var(--vscode-font-family, sans-serif); }
+.row:hover .acts, .row.active .acts { display: inline-flex; }
+.acts button {
+    border: 0;
+    border-radius: 3px;
+    padding: 0 6px;
+    background: transparent;
+    color: var(--vscode-descriptionForeground);
+    font: inherit;
+    font-size: 0.85em;
+    cursor: pointer;
+}
+.acts button:hover { background: var(--vscode-toolbar-hoverBackground); color: var(--vscode-foreground); }
+
+.menu {
+    position: fixed;
+    z-index: 10;
+    min-width: 180px;
+    padding: 4px;
+    background: var(--vscode-menu-background);
+    color: var(--vscode-menu-foreground);
+    border: 1px solid var(--vscode-menu-border, var(--vscode-widget-border, transparent));
+    border-radius: 5px;
+    box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+    font-family: var(--vscode-font-family, sans-serif);
+    font-size: var(--vscode-font-size, 13px);
+}
+.menu button {
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    width: 100%;
+    padding: 4px 10px;
+    border: 0;
+    border-radius: 3px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.menu button:hover, .menu button:focus {
+    background: var(--vscode-menu-selectionBackground);
+    color: var(--vscode-menu-selectionForeground);
+    outline: 0;
+}
+.menu .hint { opacity: 0.7; }
+
+.toast {
+    position: fixed;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    padding: 6px 12px;
+    background: var(--vscode-notifications-background);
+    color: var(--vscode-notifications-foreground);
+    border: 1px solid var(--vscode-notifications-border, var(--vscode-widget-border, transparent));
+    border-radius: 4px;
+    box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+    font-family: var(--vscode-font-family, sans-serif);
+    font-size: var(--vscode-font-size, 13px);
+    max-width: calc(100% - 32px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 /* Search matches, in the editor's find colors */
 .row.match .key, .row.match .value { background: var(--vscode-editor-findMatchHighlightBackground); }
 .row.current-match .key, .row.current-match .value {

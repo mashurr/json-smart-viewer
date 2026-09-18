@@ -1,4 +1,5 @@
 import { HostMessage, ViewMessage } from '../src/protocol';
+import { openMenu } from './menu';
 import { SearchBox } from './search';
 import { Tree, TreeState } from './tree';
 
@@ -15,10 +16,28 @@ const status = document.getElementById('status')!;
 const treeEl = document.getElementById('tree')!;
 
 let saveTimer = 0;
+const isMac = navigator.platform.toUpperCase().includes('MAC');
 const tree = new Tree(treeEl, document.getElementById('rows')!, m => vscode.postMessage(m), () => {
     clearTimeout(saveTimer);
     saveTimer = window.setTimeout(() => vscode.setState({ ...tree.state, query: search.value }), 200);
+}, {
+    copy: (version, id, what) => vscode.postMessage({ type: 'copy', version, id, what }),
+    menu: (x, y, version, id) => openMenu(x, y, [
+        { label: 'Copy path', run: () => vscode.postMessage({ type: 'copy', version, id, what: 'path' }) },
+        { label: 'Copy JSON Pointer', run: () => vscode.postMessage({ type: 'copy', version, id, what: 'pointer' }) },
+        { label: 'Copy value', hint: isMac ? '⌘C' : 'Ctrl+C', run: () => vscode.postMessage({ type: 'copy', version, id, what: 'value' }) },
+        { label: 'Reveal in file', hint: 'Enter', run: () => vscode.postMessage({ type: 'select', version, id }) },
+    ], treeEl),
 });
+
+const toast = document.getElementById('toast')!;
+let toastTimer = 0;
+function showToast(text: string) {
+    toast.textContent = text;
+    toast.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(() => { toast.hidden = true; }, 1800);
+}
 const search = new SearchBox(
     document.getElementById('search') as HTMLInputElement,
     document.getElementById('count')!,
@@ -79,6 +98,9 @@ window.addEventListener('message', (e: MessageEvent<HostMessage>) => {
             break;
         case 'matches':
             search.receive(m);
+            break;
+        case 'toast':
+            showToast(m.text);
             break;
     }
 });

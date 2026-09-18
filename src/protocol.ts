@@ -40,7 +40,9 @@ export type HostMessage =
     /** Show the node at this path (the editor cursor moved, or a search match was chosen) */
     | { type: 'reveal'; version: number; path: PathStep[] }
     /** Matches for the current search; `reset` starts a new list */
-    | { type: 'matches'; version: number; query: string; reset: boolean; ids: number[]; total: number; capped: boolean; done: boolean };
+    | { type: 'matches'; version: number; query: string; reset: boolean; ids: number[]; total: number; capped: boolean; done: boolean }
+    /** A short confirmation to show, e.g. after copying */
+    | { type: 'toast'; text: string };
 
 export type ViewMessage =
     | { type: 'ready' }
@@ -50,4 +52,6 @@ export type ViewMessage =
     /** Search keys and values; an empty query clears the search */
     | { type: 'search'; query: string }
     /** Show this node in the viewer (a search match) */
-    | { type: 'revealNode'; version: number; id: number };
+    | { type: 'revealNode'; version: number; id: number }
+    /** Copy a node's path, JSON Pointer or value to the clipboard */
+    | { type: 'copy'; version: number; id: number; what: 'path' | 'pointer' | 'value' };

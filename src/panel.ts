@@ -2,12 +2,13 @@ import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import { HostMessage, PAGE, ViewMessage } from './protocol';
+import { HostMessage, Kind, PAGE, ViewMessage } from './protocol';
 import { EditLog } from './editLog';
 import { Build, buildIndex } from './index/build';
 import { JsonIndex } from './index/query';
 import { isScanError } from './index/scanner';
 import { Searcher } from './search';
+import { accessorPath, formatJson, jsonPointer } from './copy';
 
 // How often indexing progress is sent to the webview
 const PROGRESS_MS = 100;
@@ -23,6 +24,8 @@ const DISK_CHANGE_MS = 500;
 const OWN_SELECTION_MS = 1000;
 // Clicking a value bigger than this selects only its start in the editor
 const MAX_SELECT_CHARS = 10000;
+// Copying a value bigger than this asks first
+const CONFIRM_COPY_CHARS = 50_000_000;
 
 /** A viewer for one file, linked to its editor */
 export class ViewerPanel {
@@ -224,6 +227,10 @@ export class ViewerPanel {
                 this.query = m.query;
                 void this.runSearch();
                 break;
+            case 'copy':
+                if (!ix || m.version !== ix.version || !(m.id >= 0 && m.id < ix.data.count)) { return; }
+                void this.copy(ix, m.id, m.what);
+                break;
             case 'revealNode': {
                 if (!ix || m.version !== ix.version || !(m.id > 0 && m.id < ix.data.count)) { return; }
                 this.post({ type: 'reveal', version: ix.version, path: ix.pathAt(ix.hitStart(m.id)).path });
@@ -292,6 +299,34 @@ export class ViewerPanel {
         if (!ix || !document) { return; }
         const { path: steps } = ix.pathAt(this.edits.backward(document.offsetAt(position)));
         if (steps.length) { this.post({ type: 'reveal', version: ix.version, path: steps }); }
+    }
+
+    private async copy(ix: JsonIndex, id: number, what: 'path' | 'pointer' | 'value') {
+        const steps = ix.pathAt(ix.hitStart(id)).path;
+        const where = accessorPath(steps);
+        let text: string, toast: string;
+        if (what === 'path') {
+            text = where;
+            toast = `Copied path ${where}`;
+        } else if (what === 'pointer') {
+            text = jsonPointer(steps);
+            toast = `Copied JSON Pointer ${text || '(root)'}`;
+        } else {
+            const start = ix.start(id), end = ix.end(id);
+            if (end - start > CONFIRM_COPY_CHARS) {
+                const size = `${Math.round((end - start) / 1e6)} MB`;
+                const go = await vscode.window.showWarningMessage(`Copy ${size} to the clipboard?`, { modal: true }, 'Copy');
+                if (go !== 'Copy') { return; }
+            }
+            const kind = ix.kind(id);
+            // Strings copy as their text; objects and arrays as indented JSON; numbers and literals as written
+            text = kind === Kind.String ? JSON.parse(ix.text.slice(start, end)) as string
+                : kind === Kind.Object || kind === Kind.Array ? formatJson(ix.text, start, end)
+                : ix.text.slice(start, end);
+            toast = `Copied value of ${where}`;
+        }
+        await vscode.env.clipboard.writeText(text);
+        this.post({ type: 'toast', text: toast });
     }
 
     private async runSearch() {

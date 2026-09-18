@@ -2,6 +2,7 @@
 // from the extension a page at a time when their parent is opened.
 
 import { Kind, PAGE, PathStep, Row, ViewMessage } from '../src/protocol';
+import { closeMenu } from './menu';
 
 export const ROW_HEIGHT = 22;
 const OVERSCAN = 12;
@@ -41,6 +42,13 @@ type Task =
 
 export interface TreeState { expanded: string[]; scrollTop: number; active: number }
 
+export type CopyWhat = 'path' | 'pointer' | 'value';
+export interface TreeActions {
+    copy(version: number, id: number, what: CopyWhat): void;
+    /** Opens the row menu at a point (right-click or the keyboard) */
+    menu(x: number, y: number, version: number, id: number): void;
+}
+
 export class Tree {
     private version = -1;
     private root: Row | undefined;
@@ -56,7 +64,17 @@ export class Tree {
         private readonly canvas: HTMLElement,
         private readonly send: (m: ViewMessage) => void,
         private readonly onStateChange: () => void,
+        private readonly actions: TreeActions,
     ) {
+        scroller.addEventListener('contextmenu', e => {
+            const rowEl = (e.target as HTMLElement).closest<HTMLElement>('.row');
+            const item = rowEl && this.items[Number(rowEl.dataset.i)];
+            if (item?.t !== 'node') { return; }
+            e.preventDefault();
+            this.active = Number(rowEl!.dataset.i);
+            this.paint();
+            this.actions.menu(e.clientX, e.clientY, this.version, item.row.id);
+        });
         scroller.addEventListener('scroll', () => this.schedulePaint());
         // The user taking over scrolling ends any restore after a rebuild
         for (const e of ['wheel', 'mousedown', 'keydown', 'touchstart']) {
@@ -64,6 +82,7 @@ export class Tree {
         }
         scroller.addEventListener('click', e => this.click(e));
         scroller.addEventListener('keydown', e => this.key(e));
+        scroller.addEventListener('scroll', () => closeMenu());
         new ResizeObserver(() => this.schedulePaint()).observe(scroller);
     }
 
@@ -315,6 +334,17 @@ export class Tree {
             el.append(span('key', typeof row.key === 'number' ? String(row.key) : JSON.stringify(row.key)), span('punct', ':'));
         }
         el.append(valueElement(row));
+        // Shown on hover and on the active row
+        const acts = document.createElement('span');
+        acts.className = 'acts';
+        for (const [what, label] of [['path', 'Copy path'], ['value', 'Copy value']] as const) {
+            const b = document.createElement('button');
+            b.dataset.act = what;
+            b.tabIndex = -1;
+            b.textContent = label;
+            acts.append(b);
+        }
+        el.append(acts);
         return el;
     }
 
@@ -359,6 +389,12 @@ export class Tree {
         const rowEl = (e.target as HTMLElement).closest<HTMLElement>('.row');
         if (!rowEl) { return; }
         const i = Number(rowEl.dataset.i);
+        const act = (e.target as HTMLElement).closest<HTMLElement>('button[data-act]')?.dataset.act as CopyWhat | undefined;
+        const clicked = this.items[i];
+        if (act && clicked?.t === 'node') {
+            this.actions.copy(this.version, clicked.row.id, act);
+            return;
+        }
         this.active = i;
         this.scroller.focus({ preventScroll: true });
         this.select(i);
@@ -370,6 +406,17 @@ export class Tree {
         if (!n) { return; }
         const pageRows = Math.max(1, Math.floor(this.scroller.clientHeight / ROW_HEIGHT) - 1);
         const item = this.items[this.active], open = this.isOpen(item);
+        if (item?.t === 'node' && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'c') {
+            e.preventDefault();
+            this.actions.copy(this.version, item.row.id, 'value');
+            return;
+        }
+        if (item?.t === 'node' && (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10'))) {
+            e.preventDefault();
+            const r = this.scroller.querySelector<HTMLElement>(`#row-${this.active}`)?.getBoundingClientRect();
+            this.actions.menu(r ? r.left + 24 : 0, r ? r.bottom : 0, this.version, item.row.id);
+            return;
+        }
         let next = this.active;
         switch (e.key) {
             case 'ArrowDown': next++; break;
