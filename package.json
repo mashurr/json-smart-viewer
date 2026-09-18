@@ -1,8 +1,8 @@
 {
   "name": "json-smart-viewer",
   "displayName": "JSON Smart Viewer",
-  "description": "An interactive, collapsible tree viewer for JSON files.",
-  "version": "0.0.1",
+  "description": "Explore big or messy JSON as a tree, table or graph, linked to your editor. Fast on files of hundreds of MB.",
+  "version": "0.1.0",
   "publisher": "mashurr",
   "icon": "icon.png",
   "repository": {
@@ -16,39 +16,79 @@
     "Other",
     "Visualization"
   ],
-  "activationEvents": [
-    "onLanguage:json"
+  "keywords": [
+    "json",
+    "viewer",
+    "json viewer",
+    "tree",
+    "table",
+    "graph",
+    "large files",
+    "jsonl",
+    "jsonc",
+    "explorer"
   ],
-  "main": "./src/extension.js",
+  "activationEvents": [
+    "onLanguage:json",
+    "onLanguage:jsonc",
+    "onLanguage:jsonl"
+  ],
+  "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
         "command": "json-smart-viewer.show",
         "title": "JSON Smart View"
+      },
+      {
+        "command": "json-smart-viewer.showSelection",
+        "title": "Open Selection in JSON Smart View"
       }
     ],
     "menus": {
       "editor/title": [
         {
-          "when": "resourceLangId == json",
+          "when": "resourceLangId =~ /^(json|jsonc|jsonl)$/ || resourceExtname =~ /^\\.(jsonl|ndjson)$/",
           "command": "json-smart-viewer.show",
           "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "when": "resourceExtname =~ /^\\.(json|jsonc|jsonl|ndjson)$/",
+          "command": "json-smart-viewer.show",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "when": "editorHasSelection",
+          "command": "json-smart-viewer.showSelection",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "json-smart-viewer.showSelection",
+          "when": "editorHasSelection"
         }
       ]
     }
   },
   "scripts": {
-    "lint": "eslint .",
-    "pretest": "npm run lint",
-    "test": "vscode-test"
+    "vscode:prepublish": "npm run typecheck && node esbuild.mjs --production",
+    "compile": "npm run typecheck && node esbuild.mjs",
+    "typecheck": "tsc -p . && tsc -p webview",
+    "watch": "node esbuild.mjs --watch",
+    "lint": "eslint src webview"
   },
   "devDependencies": {
-    "@types/mocha": "^10.0.10",
     "@types/node": "20.x",
     "@types/vscode": "^1.90.0",
-    "@vscode/test-cli": "^0.0.11",
-    "@vscode/test-electron": "^2.5.2",
-    "eslint": "^9.25.1"
+    "esbuild": "^0.28.2",
+    "eslint": "^9.25.1",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.0"
   },
   "license": "MIT"
 }

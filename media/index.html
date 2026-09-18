@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'none';
+        style-src {{CSP_SOURCE}};
+        script-src 'nonce-{{NONCE}}';">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Smart View</title>
+    <link rel="stylesheet" href="{{STYLE_URI}}">
+</head>
+<body>
+    <div class="toolbar">
+        <div class="views" role="tablist" aria-label="View">
+            <button id="view-tree" role="tab" aria-selected="true" aria-controls="tree">Tree</button>
+            <button id="view-table" role="tab" aria-selected="false" aria-controls="table">Table</button>
+            <button id="view-graph" role="tab" aria-selected="false" aria-controls="graph">Graph</button>
+        </div>
+        <div id="tree-tools" class="tools">
+            <button id="expand-all" class="icon" title="Expand all" aria-label="Expand all">&#8862;</button>
+            <button id="collapse-all" class="icon" title="Collapse all" aria-label="Collapse all">&#8863;</button>
+        </div>
+        <div class="search" role="search">
+            <input id="search" type="text" placeholder="Search keys and values" aria-label="Search keys and values" spellcheck="false" autocomplete="off">
+            <span id="count" class="count" aria-live="polite"></span>
+            <button id="prev" class="icon" title="Previous match (Shift+Enter)" aria-label="Previous match">&#8593;</button>
+            <button id="next" class="icon" title="Next match (Enter)" aria-label="Next match">&#8595;</button>
+        </div>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+    <div id="tree" class="tree" role="tree" tabindex="0" aria-label="JSON tree">
+        <div id="rows" class="rows"></div>
+    </div>
+    <div id="tablebar" class="tablebar" hidden>
+        <label for="table-select">Table</label>
+        <select id="table-select"></select>
+        <span id="table-note" class="note" aria-live="polite"></span>
+    </div>
+    <div id="table" class="table" role="table" tabindex="0" aria-label="Table" hidden></div>
+    <div id="graph" class="graph" tabindex="0" aria-label="Graph" hidden></div>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    <script nonce="{{NONCE}}" src="{{SCRIPT_URI}}"></script>
+</body>
+</html>

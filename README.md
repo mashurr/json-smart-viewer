@@ -1,118 +1,43 @@
 # JSON Smart Viewer
 
-A sleek, high-contrast JSON viewer extension for Visual Studio Code that transforms complex JSON files into an elegant, collapsible tree structure with syntax highlighting.
+Explore big or messy JSON as a tree, table or graph, side by side with your editor.
+
+![JSON Smart Viewer in action: opening the viewer, colour and date previews, clicking between the viewer and the file, search and copying a path](images/demo.gif)
 
 ## Features
 
-JSON Smart Viewer provides an intuitive way to navigate and understand JSON files with these key features:
+- **Open from the editor title** of any JSON file, or right-click a file in the Explorer.
+- **Linked to your editor**: click a value to select it in the file, or click in the file to reveal it in the viewer. Edits show up once you pause typing.
+- **Search** keys and values, including escaped text. **Enter** and **Shift+Enter** step through matches.
+- **Copy** a path (`orders[12].total`), JSON Pointer or value from the right-click menu, or copy the selected value with **Ctrl+C** / **Cmd+C**.
+- **Previews**: colour swatches, readable dates and timestamps, and links that open with **Ctrl+click** / **Cmd+click**.
+- **Table and graph views**: sort arrays and maps of objects by any column, or explore nesting as cards you can pan and zoom.
 
-### 🎯 **Smart Collapsible Tree View**
-- Expand/collapse nested objects and arrays with smooth animations
-- Clean indentation that shows the hierarchy at a glance
-- Item count previews for collapsed sections (e.g., "5 items")
+  ![Sorting the table by total, clicking a row, and opening cards in the graph](images/table-graph.gif)
 
-### 🎨 **High Contrast Theme**
-- Pure black background with bright, vibrant colors
-- Excellent readability and reduced eye strain
-- Color-coded JSON types:
-  - **Cyan** for property names
-  - **Green** for strings
-  - **Blue** for numbers
-  - **Yellow** for booleans
-  - **Purple** for null values
+- **Large files**: files of hundreds of megabytes open in a second or two, because only what's on screen is built. Big arrays and objects open in groups of 100.
 
-### ⚡ **Easy Activation**
-1. Open any JSON file in VS Code
-2. Use the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`)
-3. Run the command: `JSON Smart Viewer: Show`
-4. View your JSON in a beautiful, navigable format
+  ![Opening a 214 MB file from the Explorer and drilling into a million items](images/large-files.gif)
 
-### 🛡️ **Secure & Lightweight**
-- No external dependencies beyond Tailwind CSS CDN
-- Proper Content Security Policy implementation
-- Fast rendering even for large JSON files
+- **More than plain JSON**: JSON inside strings opens like any object, JSONC comments are fine, and JSON Lines files show bad lines with their line number. To view JSON inside any other file, such as a log line, select it and choose **Open Selection in JSON Smart View**.
 
-![JSON Smart Viewer Demo](images/json-smart-viewer-demo.png)
+  ![Opening JSON inside a string, a JSON Lines file with a bad line, and JSON selected in a log file](images/formats.gif)
 
-> **Tip**: Try it on complex API responses or configuration files to see the full power of the collapsible tree view!
+- Follows your theme, works offline, and shows big numbers exactly as written.
 
 ## Requirements
 
-- Visual Studio Code version 1.90.0 or higher
-- Internet connection (for Tailwind CSS CDN)
-
-## Extension Settings
-
-This extension contributes the following command:
-
-* `json-smart-viewer.show`: Opens the JSON Smart Viewer for the currently active JSON file
-
-Currently, there are no configurable settings, but we're planning to add customization options in future releases.
-
-## Usage
-
-1. **Open a JSON file** in VS Code
-2. **Open Command Palette** with `Ctrl+Shift+P` (Windows/Linux) or `Cmd+Shift+P` (macOS)
-3. **Type "JSON Smart Viewer"** and select "JSON Smart Viewer: Show"
-4. **Navigate your JSON** by clicking the arrow icons to expand/collapse sections
-
-The viewer will open in a new webview panel alongside your editor, making it easy to reference both the raw JSON and the formatted view.
+- VS Code 1.90 or later.
 
 ## Known Issues
 
-- Large JSON files (>10MB) may experience slower initial rendering
-- The extension currently requires an internet connection for Tailwind CSS styling
-- Some very deeply nested JSON structures might require horizontal scrolling
+- **VS Code doesn't share files over 50 MB with extensions.** For those, clicking in the viewer still jumps to the value in the editor, but the viewer can't follow the cursor or your unsaved edits. It refreshes when the file is saved.
+- Inserting an item into an array shifts the indexes after it, so an open `orders[5]` then shows whatever is now at position 5.
+- Paths nested more than 1,000 levels deep are revealed down to level 1,000.
+- JSON inside strings opens in the tree; the table and graph show those strings as text.
 
-If you encounter any issues, please report them on our [GitHub repository](https://github.com/your-username/json-smart-viewer).
-
-## Roadmap
-
-We're actively working on these exciting features:
-
-- 🎨 **Theme customization** (light mode, custom color schemes)
-- 📱 **Offline mode** (bundled CSS)
-- 🔍 **Search and filter** functionality
-- 📋 **Copy/export** options
-- ⚙️ **Configuration settings** for indentation and colors
-- 🚀 **Performance optimizations** for large files
+Report issues on [GitHub](https://github.com/mashurr/json-smart-viewer/issues).
 
 ## Release Notes
 
-### 0.0.1 (Initial Release)
-
-🎉 **Welcome to JSON Smart Viewer!**
-
-**Features:**
-- High-contrast, elegant JSON tree view
-- Smooth expand/collapse animations
-- Color-coded syntax highlighting
-- Item count previews for collapsed sections
-- Responsive design that works with all VS Code themes
-- Secure webview implementation
-
-**What's New:**
-- Clean, professional interface with black background
-- Intuitive navigation with collapsible tree structure
-- Fast rendering optimized for developer workflows
-- One-command activation from the Command Palette
-
----
-
-## Contributing
-
-We welcome contributions! If you'd like to help improve JSON Smart Viewer:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-## Support
-
-Found this extension helpful? Consider:
-- ⭐ **Starring** the repository
-- 📝 **Leaving a review** in the VS Code Marketplace  
-- 🐛 **Reporting bugs** or suggesting features
-
-**Enjoy exploring your JSON with style!** ✨
+See [CHANGELOG.md](CHANGELOG.md).
