@@ -22,6 +22,7 @@ export const groupId = (pointer: string, start: number, end: number) => `\u0001$
 export { groupSize };
 
 const isContainer = (r: Row) => r.kind === Kind.Object || r.kind === Kind.Array;
+const isJsonString = (r: Row) => r.kind === Kind.String && !!r.json;
 const signature = (r: Row) => `${r.kind}|${r.text ?? ''}|${r.truncated ? 1 : 0}|${r.size ?? ''}`;
 const itemKey = (item: Item | undefined) => !item || item.t === 'loading' ? undefined : item.t === 'group' ? item.id : item.pointer;
 const parentPointer = (p: string) => p.slice(0, Math.max(0, p.lastIndexOf('/')));
@@ -98,6 +99,22 @@ export class Tree {
     private before: Map<string, string> | undefined;
     private readonly changedAt = new Map<string, number>();
     private pendingReveal: PathStep[] | undefined;
+    /** JSON decoded from strings, by string id: its root row, or null when it wasn't JSON after all */
+    private readonly decoded = new Map<number, Row | null>();
+    private readonly decodeAsked = new Set<number>();
+
+    setDecoded(version: number, id: number, root: Row | undefined) {
+        if (version !== this.version) { return; }
+        this.decoded.set(id, root && isContainer(root) && root.size ? root : null);
+        this.refresh();
+        this.onStateChange();
+    }
+
+    /** Whether a row opens, and the row whose children it shows */
+    private opens(row: Row): boolean {
+        if (isContainer(row)) { return !!row.size; }
+        return isJsonString(row) && this.decoded.get(row.id) !== null;
+    }
     private matches: ReadonlySet<number> = new Set();
     private currentMatch: number | undefined;
 
@@ -113,6 +130,8 @@ export class Tree {
             if (this.version !== -1) { this.keepPlace(); }
             this.pages.clear();
             this.requested.clear();
+            this.decoded.clear();
+            this.decodeAsked.clear();
         }
         this.version = version;
         this.root = root;
@@ -236,6 +255,18 @@ export class Tree {
                         tasks.push({ t: 'emit', item: { t: 'node', row, pointer: p, depth, pos: start + i + 1, setSize: parent.size ?? 0 } });
                         if (isContainer(row) && row.size && this.expanded.has(p)) {
                             tasks.push({ t: 'range', parent: row, pointer: p, depth: depth + 1, start: 0, end: row.size });
+                        } else if (isJsonString(row) && this.expanded.has(p)) {
+                            // JSON inside a string: its decoded root's children, once the extension has read it
+                            const inner = this.decoded.get(row.id);
+                            if (inner) {
+                                tasks.push({ t: 'range', parent: inner, pointer: p, depth: depth + 1, start: 0, end: inner.size ?? 0 });
+                            } else if (inner === undefined) {
+                                if (!this.decodeAsked.has(row.id)) {
+                                    this.decodeAsked.add(row.id);
+                                    this.send({ type: 'decode', version: this.version, id: row.id });
+                                }
+                                tasks.push({ t: 'emit', item: { t: 'loading', depth: depth + 1 } });
+                            }
                         }
                     });
                 }
@@ -319,7 +350,7 @@ export class Tree {
         const row = item.row;
         this.markChanged(el, item.pointer, row);
         if (this.matches.has(row.id)) { el.classList.add(row.id === this.currentMatch ? 'current-match' : 'match'); }
-        const openable = isContainer(row) && !!row.size;
+        const openable = this.opens(row);
         if (openable) {
             const open = this.expanded.has(item.pointer);
             twist.classList.toggle('open', open);
@@ -331,6 +362,10 @@ export class Tree {
             el.append(span('key', typeof row.key === 'number' ? String(row.key) : JSON.stringify(row.key)), span('punct', ':'));
         }
         el.append(valueElement(row));
+        if (isJsonString(row) && this.decoded.get(row.id) !== null) {
+            const inner = this.decoded.get(row.id);
+            el.append(span('badge', inner ? `JSON ${inner.kind === Kind.Array ? `[ ${inner.size!.toLocaleString()} ]` : `{ ${inner.size!.toLocaleString()} }`}` : 'JSON'));
+        }
         // Shown on hover and on the active row
         const acts = document.createElement('span');
         acts.className = 'acts';
@@ -370,7 +405,7 @@ export class Tree {
         const item = this.items[index];
         if (!item || item.t === 'loading') { return; }
         const id = item.t === 'group' ? item.id : item.pointer;
-        if (item.t === 'node' && !(isContainer(item.row) && item.row.size)) { return; }
+        if (item.t === 'node' && !this.opens(item.row)) { return; }
         if (this.expanded.has(id)) { this.expanded.delete(id); } else { this.expanded.add(id); }
         this.refresh();
         this.onStateChange();
@@ -378,7 +413,7 @@ export class Tree {
 
     private isOpen(item: Item): boolean | undefined {
         if (item.t === 'group') { return this.expanded.has(item.id); }
-        if (item.t === 'node' && isContainer(item.row) && item.row.size) { return this.expanded.has(item.pointer); }
+        if (item.t === 'node' && this.opens(item.row)) { return this.expanded.has(item.pointer); }
         return undefined;
     }
 
@@ -473,6 +508,8 @@ export function valueElement(row: Pick<Row, 'kind' | 'text' | 'truncated' | 'siz
             return span('value str', JSON.stringify(row.text ?? '').slice(0, row.truncated ? -1 : undefined) + (row.truncated ? '…"' : ''));
         case Kind.Number:
             return span('value num', (row.text ?? '') + (row.truncated ? '…' : ''));
+        case Kind.Error:
+            return span('value error', `⚠ ${row.text ?? ''}`);
         case Kind.True:
             return span('value bool', 'true');
         case Kind.False:

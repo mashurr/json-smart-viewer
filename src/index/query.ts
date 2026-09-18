@@ -34,7 +34,13 @@ export class JsonIndex {
         if (kind === Kind.Object || kind === Kind.Array) {
             row.size = this.data.size[id];
         } else if (kind === Kind.String) {
-            Object.assign(row, stringPreview(this.text, this.data.start[id], this.data.end[id]));
+            const s = this.data.start[id], e = this.data.end[id];
+            Object.assign(row, stringPreview(this.text, s, e));
+            // Looks like a stringified object or array ("{…}" or "[…]"); decoding tells for sure
+            const a = this.text.charCodeAt(s + 1), z = this.text.charCodeAt(e - 2);
+            if (e - s > 3 && ((a === 123 && z === 125) || (a === 91 && z === 93))) { row.json = true; }
+        } else if (kind === Kind.Error) {
+            row.text = `Line ${this.data.size[id].toLocaleString()}: ${this.data.errors[this.data.first[id]]}`;
         } else if (kind === Kind.Number) {
             const s = this.data.start[id], e = this.data.end[id];
             row.text = this.text.slice(s, Math.min(e, s + PREVIEW_CHARS));

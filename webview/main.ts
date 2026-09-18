@@ -173,6 +173,10 @@ window.addEventListener('message', (e: MessageEvent<HostMessage>) => {
         case 'toast':
             showToast(m.text);
             break;
+        case 'decoded':
+            tree.setDecoded(m.version, m.id, m.root);
+            if (m.error) { showToast(m.error); }
+            break;
         case 'tables':
             table.setTables(m.version, m.tables);
             // Nothing chosen yet: show the biggest table

@@ -1,7 +1,8 @@
 // Messages between the extension host and the webview. Shared by both sides,
 // so this file must not import anything.
 
-export const enum Kind { Object, Array, String, Number, True, False, Null }
+/** `Error`: a JSON Lines line that isn't valid JSON (its message is the row's text) */
+export const enum Kind { Object, Array, String, Number, True, False, Null, Error }
 
 /** One tree row: a value plus the key or index it sits under */
 export interface Row {
@@ -16,6 +17,8 @@ export interface Row {
     truncated?: boolean;
     /** Number of children, for objects and arrays */
     size?: number;
+    /** A string whose text looks like a JSON object or array: it can be opened */
+    json?: boolean;
 }
 
 /** One step of a path: the key (or array index) and the child's position in its parent */
@@ -91,6 +94,8 @@ export type HostMessage =
     | { type: 'matches'; version: number; query: string; reset: boolean; ids: number[]; total: number; capped: boolean; done: boolean }
     /** A short confirmation to show, e.g. after copying */
     | { type: 'toast'; text: string }
+    /** The JSON inside a string, opened: its root row, or why it couldn't be read */
+    | { type: 'decoded'; version: number; id: number; root?: Row; error?: string }
     /** Tables found in the document, biggest first */
     | { type: 'tables'; version: number; tables: TableInfo[] }
     /** The table to show, with its columns (`more`: columns left out) */
@@ -110,6 +115,8 @@ export type ViewMessage =
     | { type: 'revealNode'; version: number; id: number }
     /** Copy a node's path, JSON Pointer or value to the clipboard */
     | { type: 'copy'; version: number; id: number; what: 'path' | 'pointer' | 'value' }
+    /** Open the JSON inside a string */
+    | { type: 'decode'; version: number; id: number }
     /** List the tables in the document */
     | { type: 'tables'; version: number }
     /** Show a container as a table, by node id or (after a rebuild) by JSON Pointer */

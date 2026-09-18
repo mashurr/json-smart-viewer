@@ -14,12 +14,14 @@ export interface IndexData {
     end: Int32Array;
     /** Offset of the opening quote of the node's key, or -1 when it has none */
     key: Int32Array;
-    /** Number of children of containers */
+    /** Number of children of containers; for JSON Lines error nodes, the 1-based line number */
     size: Int32Array;
-    /** Where a container's children start in `children` */
+    /** Where a container's children start in `children`; for error nodes, their message in `errors` */
     first: Int32Array;
     /** Child node ids, stored contiguously per container in document order */
     children: Int32Array;
+    /** JSON Lines: the messages of error nodes, in document order */
+    errors: string[];
 }
 
 export interface ScanError {
@@ -31,6 +33,8 @@ export interface ScanError {
 export interface ScanOptions {
     /** Allow comments and trailing commas */
     jsonc?: boolean;
+    /** JSON Lines: one value per line under a root array; bad lines become error nodes */
+    lines?: boolean;
     /** Called about every 16M characters with the current offset */
     onProgress?: (offset: number) => void;
 }
@@ -72,6 +76,7 @@ export function scan(text: string, options: ScanOptions = {}): IndexData | ScanE
     let count = 0, childLen = 0, pendingLen = 0, sp = 0;
     let pos = 0, nextProgress = PROGRESS_STEP;
     let error: ScanError | undefined;
+    const errors: string[] = [];
 
     const fail = (message: string, at = pos): ScanError => (error = { offset: at, message });
 
@@ -208,57 +213,114 @@ export function scan(text: string, options: ScanOptions = {}): IndexData | ScanE
         pendingLen = seg;
     }
 
-    if (text.charCodeAt(0) === Ch.Bom) { pos = 1; }
-    if (!skip()) { return error!; }
-    if (pos >= len) { return { offset: -1, message: 'The file is empty' }; }
-    if (!value(-1)) { return error!; }
-
-    while (sp > 0) {
-        if (pos >= nextProgress) { options.onProgress?.(pos); nextProgress = pos + PROGRESS_STEP; }
-        if (!skip()) { return error!; }
-        const top = sp - 1, isObject = kind[stackNode.a[top]] === Kind.Object;
-        const closeCh = isObject ? Ch.CloseBrace : Ch.CloseBracket;
-        let c = text.charCodeAt(pos);
-        if (stackAfter[top]) {
-            if (c === closeCh) { close(); continue; }
-            if (c !== Ch.Comma) { return fail(pos >= len ? 'Unexpected end of file' : isObject ? "Expected ',' or '}'" : "Expected ',' or ']'"); }
-            pos++;
-            if (!skip()) { return error!; }
-            c = text.charCodeAt(pos);
-            if (c === closeCh) {
-                if (jsonc) { close(); continue; }
-                return fail('Trailing comma');
+    // Parses containers until the stack is back down to `base` open containers
+    function finish(base: number): boolean {
+        while (sp > base) {
+            if (pos >= nextProgress) { options.onProgress?.(pos); nextProgress = pos + PROGRESS_STEP; }
+            if (!skip()) { return false; }
+            const top = sp - 1, isObject = kind[stackNode.a[top]] === Kind.Object;
+            const closeCh = isObject ? Ch.CloseBrace : Ch.CloseBracket;
+            let c = text.charCodeAt(pos);
+            if (stackAfter[top]) {
+                if (c === closeCh) { close(); continue; }
+                if (c !== Ch.Comma) { fail(pos >= len ? 'Unexpected end of file' : isObject ? "Expected ',' or '}'" : "Expected ',' or ']'"); return false; }
+                pos++;
+                if (!skip()) { return false; }
+                c = text.charCodeAt(pos);
+                if (c === closeCh) {
+                    if (jsonc) { close(); continue; }
+                    fail('Trailing comma');
+                    return false;
+                }
+            } else if (c === closeCh) {
+                close();
+                continue;
             }
-        } else if (c === closeCh) {
-            close();
-            continue;
+            stackAfter[top] = 1;
+            let keyAt = -1;
+            if (isObject) {
+                if (c !== Ch.Quote) { fail(pos >= len ? 'Unexpected end of file' : 'Expected a property name'); return false; }
+                keyAt = pos;
+                if (!skipString() || !skip()) { return false; }
+                if (text.charCodeAt(pos) !== Ch.Colon) { fail("Expected ':'"); return false; }
+                pos++;
+                if (!skip()) { return false; }
+            }
+            if (!value(keyAt)) { return false; }
         }
-        stackAfter[top] = 1;
-        let keyAt = -1;
-        if (isObject) {
-            if (c !== Ch.Quote) { return fail(pos >= len ? 'Unexpected end of file' : 'Expected a property name'); }
-            keyAt = pos;
-            if (!skipString() || !skip()) { return error!; }
-            if (text.charCodeAt(pos) !== Ch.Colon) { return fail("Expected ':'"); }
-            pos++;
-            if (!skip()) { return error!; }
-        }
-        if (!value(keyAt)) { return error!; }
+        return true;
     }
 
+    if (text.charCodeAt(0) === Ch.Bom) { pos = 1; }
+    if (options.lines) { return lines(); }
+    if (!skip()) { return error!; }
+    if (pos >= len) { return { offset: -1, message: 'The file is empty' }; }
+    if (!value(-1) || !finish(0)) { return error!; }
     if (!skip()) { return error!; }
     if (pos < len) { return { offset: pos, message: 'Unexpected content after the end of the JSON value' }; }
+    return result();
 
-    return {
-        count,
-        kind: kind.slice(0, count),
-        start: start.a.slice(0, count),
-        end: end.a.slice(0, count),
-        key: key.a.slice(0, count),
-        size: size.a.slice(0, count),
-        first: first.a.slice(0, count),
-        children: children.a.slice(0, childLen),
-    };
+    /** JSON Lines: a root array with one item per non-blank line */
+    function lines(): IndexData | ScanError {
+        // The root array is virtual: there is no '[' in the text
+        const root = newNode(Kind.Array, -1);
+        stackNode.a[0] = root; stackSeg.a[0] = pendingLen; stackAfter[0] = 0; sp = 1;
+        let lineNo = 1, counted = 0;
+        const lineAt = (offset: number) => {
+            for (let i = text.indexOf('\n', counted); i >= 0 && i < offset; i = text.indexOf('\n', i + 1)) { lineNo++; counted = i + 1; }
+            counted = Math.max(counted, offset);
+            return lineNo;
+        };
+        for (;;) {
+            // Blank lines and spaces between lines are skipped
+            while (pos < len) {
+                const c = text.charCodeAt(pos);
+                if (c === Ch.Space || c === Ch.Tab || c === Ch.CarriageReturn || c === Ch.LineFeed) { pos++; } else { break; }
+            }
+            if (pos >= len) { break; }
+            const lineStart = pos, nodes = count, pendingAt = pendingLen, childAt = childLen;
+            stackAfter[0] = 1;
+            let ok = value(-1) && finish(1);
+            if (ok) {
+                while (pos < len && (text.charCodeAt(pos) === Ch.Space || text.charCodeAt(pos) === Ch.Tab || text.charCodeAt(pos) === Ch.CarriageReturn)) { pos++; }
+                if (pos < len && text.charCodeAt(pos) !== Ch.LineFeed) { fail('Expected the line to end after a value'); ok = false; }
+            }
+            if (!ok) {
+                // Forget what the bad line started, and record it as an error node instead
+                const message = error!.message;
+                count = nodes; pendingLen = pendingAt; childLen = childAt; sp = 1; error = undefined;
+                const nl = text.indexOf('\n', lineStart);
+                let lineEnd = nl < 0 ? len : nl;
+                if (lineEnd > lineStart && text.charCodeAt(lineEnd - 1) === Ch.CarriageReturn) { lineEnd--; }
+                pos = lineStart;
+                const id = newNode(Kind.Error, -1);
+                end.a[id] = lineEnd;
+                size.a[id] = lineAt(lineStart);
+                first.a[id] = errors.length;
+                errors.push(message);
+                pos = nl < 0 ? len : nl + 1;
+            }
+            if (pos >= nextProgress) { options.onProgress?.(pos); nextProgress = pos + PROGRESS_STEP; }
+        }
+        pos = len;
+        close(); // the virtual ']'
+        end.a[0] = len;
+        return result();
+    }
+
+    function result(): IndexData {
+        return {
+            count,
+            kind: kind.slice(0, count),
+            start: start.a.slice(0, count),
+            end: end.a.slice(0, count),
+            key: key.a.slice(0, count),
+            size: size.a.slice(0, count),
+            first: first.a.slice(0, count),
+            children: children.a.slice(0, childLen),
+            errors,
+        };
+    }
 }
 
 export function isScanError(r: IndexData | ScanError): r is ScanError {

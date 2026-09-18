@@ -112,6 +112,12 @@ button.icon:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
 .bool { color: var(--vscode-debugTokenExpression-boolean); font-weight: 700; }
 .null { color: var(--vscode-charts-purple); font-weight: 700; }
 .meta { color: var(--vscode-descriptionForeground); font-style: italic; }
+.error { color: var(--vscode-errorForeground); }
+.badge {
+    flex-shrink: 0; padding: 0 6px; border-radius: 8px; line-height: 16px; font-size: 0.8em; font-style: normal;
+    font-family: var(--vscode-font-family, sans-serif);
+    background: var(--vscode-badge-background); color: var(--vscode-badge-foreground);
+}
 .value { overflow: hidden; text-overflow: ellipsis; }
 
 /* View switcher */

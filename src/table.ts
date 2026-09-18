@@ -143,7 +143,7 @@ export function tableRows(ix: JsonIndex, id: number, shape: Shape, columns: Tabl
 }
 
 // Sort order of kinds: numbers, strings, booleans, null, objects/arrays, then missing
-const RANK: Record<number, number> = { [Kind.Number]: 0, [Kind.String]: 1, [Kind.True]: 2, [Kind.False]: 2, [Kind.Null]: 3, [Kind.Object]: 4, [Kind.Array]: 4 };
+const RANK: Record<number, number> = { [Kind.Number]: 0, [Kind.String]: 1, [Kind.True]: 2, [Kind.False]: 2, [Kind.Null]: 3, [Kind.Object]: 4, [Kind.Array]: 4, [Kind.Error]: 5 };
 const MISSING = 5;
 
 /** Strings travel as one joined string with end offsets: one copy instead of a million */

@@ -3,12 +3,12 @@ import { parentPort } from 'worker_threads';
 import { scan, isScanError } from './scanner';
 
 /** Either the text, or the file's bytes (transferred, so the host never copies a big string) */
-export interface WorkerRequest { text?: string; bytes?: Uint8Array; jsonc: boolean }
+export interface WorkerRequest { text?: string; bytes?: Uint8Array; jsonc?: boolean; lines?: boolean }
 
-parentPort!.once('message', ({ text, bytes, jsonc }: WorkerRequest) => {
+parentPort!.once('message', ({ text, bytes, jsonc, lines }: WorkerRequest) => {
     // Decoded exactly like the host decodes its own copy, so offsets agree
     text ??= new TextDecoder('utf-8', { ignoreBOM: false }).decode(bytes);
-    const result = scan(text, { jsonc, onProgress: offset => parentPort!.postMessage({ type: 'progress', offset }) });
+    const result = scan(text, { jsonc, lines, onProgress: offset => parentPort!.postMessage({ type: 'progress', offset }) });
     if (isScanError(result)) {
         parentPort!.postMessage({ type: 'error', error: result });
         return;

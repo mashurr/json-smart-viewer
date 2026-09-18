@@ -44,6 +44,11 @@ export class ViewerPanel {
         ViewerPanel.panels.set(uri.toString(), new ViewerPanel(context, uri, document, sourceColumn));
     }
 
+    /** A viewer for selected text, e.g. JSON inside a log file; a fixed snapshot, not linked to later edits */
+    static showSelection(context: vscode.ExtensionContext, document: vscode.TextDocument, base: number, text: string, sourceColumn: vscode.ViewColumn | undefined) {
+        new ViewerPanel(context, document.uri, undefined, sourceColumn, { text, base, document, version: document.version });
+    }
+
     private readonly panel: vscode.WebviewPanel;
     private readonly fileName: string;
     private index: JsonIndex | undefined;
@@ -65,6 +70,9 @@ export class ViewerPanel {
     private lineStarts: Int32Array | undefined;
     private ownSelection: { selection: vscode.Selection; at: number } | undefined;
     private readonly searcher = new Searcher();
+    /** JSON decoded from strings: each has its own index, with ids numbered after the main index's */
+    private subs: { base: number; ix: JsonIndex; owner: number }[] = [];
+    private nextBase = 0;
     /** The table on show: its columns and the row orders sorted so far */
     private table: { version: number; info: TableInfo; columns: TableColumn[]; orders: Map<string, Int32Array> } | undefined;
     private sortJob: { key: string; cancel(): void } | undefined;
@@ -78,10 +86,12 @@ export class ViewerPanel {
         private readonly uri: vscode.Uri,
         private document: vscode.TextDocument | undefined,
         private readonly sourceColumn: vscode.ViewColumn | undefined,
+        private readonly snapshot?: { text: string; base: number; document: vscode.TextDocument; version: number; lines?: boolean },
     ) {
         const roots = ['media', 'out'].map(d => vscode.Uri.file(path.join(context.extensionPath, d)));
         this.fileName = path.posix.basename(uri.path);
-        this.panel = vscode.window.createWebviewPanel('jsonSmartViewer', `JSON Smart View: ${this.fileName}`,
+        const title = snapshot ? `JSON Smart View: selection in ${this.fileName}` : `JSON Smart View: ${this.fileName}`;
+        this.panel = vscode.window.createWebviewPanel('jsonSmartViewer', title,
             { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
             { enableScripts: true, localResourceRoots: roots });
         this.panel.webview.html = this.html();
@@ -93,7 +103,7 @@ export class ViewerPanel {
             vscode.workspace.onDidChangeTextDocument(e => {
                 if (e.document === this.document && e.contentChanges.length) { this.edited(e.contentChanges); }
             }),
-            vscode.workspace.onDidOpenTextDocument(d => { if (isMine(d) && !this.document) { this.follow(d); } }),
+            vscode.workspace.onDidOpenTextDocument(d => { if (isMine(d) && !this.document && !this.snapshot) { this.follow(d); } }),
             vscode.workspace.onDidCloseTextDocument(d => { if (d === this.document) { this.follow(undefined); } }),
             vscode.window.onDidChangeTextEditorSelection(e => {
                 if (e.textEditor.document !== this.document) { return; }
@@ -104,7 +114,7 @@ export class ViewerPanel {
                 this.cursorTimer = setTimeout(() => this.revealCursor(e.textEditor.selection.active), CURSOR_MS);
             }),
         );
-        if (!document) { this.watchDisk(); }
+        if (!document && !snapshot) { this.watchDisk(); }
         void this.rebuild();
     }
 
@@ -139,7 +149,16 @@ export class ViewerPanel {
         this.rebuildTimer = setTimeout(() => void this.rebuild(), ms);
     }
 
+    /** JSONC allows comments and trailing commas; JSON Lines reads one value per line */
+    private mode(): { jsonc?: boolean; lines?: boolean } {
+        if (this.snapshot) { return this.snapshot.lines ? { lines: true } : { jsonc: true }; }
+        const lang = this.document?.languageId, ext = path.posix.extname(this.uri.path).toLowerCase();
+        if (lang === 'jsonl' || ext === '.jsonl' || ext === '.ndjson') { return { lines: true }; }
+        return { jsonc: lang === 'jsonc' || ext === '.jsonc' };
+    }
+
     private async readText(): Promise<{ text: string; version: number; bytes?: Uint8Array }> {
+        if (this.snapshot) { return { text: this.snapshot.text, version: 1 }; }
         if (this.document) { return { text: this.document.getText(), version: this.document.version }; }
         const bytes = await vscode.workspace.fs.readFile(this.uri);
         // Same decoding as the editor: UTF-8 without the byte order mark. Decoded in one go: pieces decoded
@@ -163,7 +182,7 @@ export class ViewerPanel {
         if (bytes) { await new Promise(resolve => setImmediate(resolve)); }
         let lastProgress = 0;
         const started = Date.now();
-        const build = buildIndex(this.context.extensionPath, text, false, offset => {
+        const build = buildIndex(this.context.extensionPath, text, this.mode(), offset => {
             const now = Date.now();
             if (now - lastProgress < PROGRESS_MS || this.index) { return; }
             lastProgress = now;
@@ -176,6 +195,12 @@ export class ViewerPanel {
             this.build = undefined;
             this.lastBuildMs = Date.now() - started;
             if (isScanError(result)) {
+                // A selection that isn't one JSON value but spans lines is read as JSON Lines (e.g. log lines)
+                if (this.snapshot && !this.snapshot.lines && text.trim().includes('\n')) {
+                    this.snapshot.lines = true;
+                    this.scheduleRebuild(0);
+                    return;
+                }
                 const at = result.offset < 0 ? { line: 0, column: 0 } : lineColumn(text, result.offset);
                 this.fail(result.message, at.line, at.column);
                 return;
@@ -187,6 +212,8 @@ export class ViewerPanel {
             this.problemShown = false;
             this.lineStarts = undefined;
             this.index = new JsonIndex(text, result, version);
+            this.subs = [];
+            this.nextBase = result.count;
             this.cancelSort();
             this.table = undefined;
             this.post(this.documentMessage());
@@ -252,8 +279,8 @@ export class ViewerPanel {
                 if (ix && m.version === ix.version && this.table?.info.id === m.id) { void this.tableRows(ix, m.start, m.count, m.sort); }
                 break;
             case 'copy':
-                if (!ix || m.version !== ix.version || !(m.id >= 0 && m.id < ix.data.count)) { return; }
-                void this.copy(ix, m.id, m.what);
+                if (!ix || m.version !== ix.version || !this.locate(m.id)) { return; }
+                void this.copy(m.id, m.what);
                 break;
             case 'revealNode': {
                 if (!ix || m.version !== ix.version || !(m.id > 0 && m.id < ix.data.count)) { return; }
@@ -261,15 +288,22 @@ export class ViewerPanel {
                 break;
             }
             case 'children': {
-                if (!ix || m.version !== ix.version || !(m.id >= 0 && m.id < ix.data.count)) { return; }
+                const at = ix && m.version === ix.version ? this.locate(m.id) : undefined;
+                if (!at) { return; }
                 const count = Math.min(Math.max(0, m.count), PAGE);
-                this.post({ type: 'rows', version: ix.version, id: m.id, start: m.start, rows: ix.rows(m.id, m.start, count) });
+                const rows = at.ix.rows(at.local, m.start, count).map(r => at.base ? { ...r, id: r.id + at.base } : r);
+                this.post({ type: 'rows', version: ix!.version, id: m.id, start: m.start, rows });
                 break;
             }
+            case 'decode':
+                if (ix && m.version === ix.version) { this.decode(ix, m.id); }
+                break;
             case 'select': {
-                if (!ix || m.version !== ix.version || !(m.id >= 0 && m.id < ix.data.count)) { return; }
+                if (!ix || m.version !== ix.version || !this.locate(m.id)) { return; }
+                // Inside decoded JSON, select the string it came from
+                const id = this.mainNode(m.id);
                 // The whole value when it's small; otherwise its start, so the editor never selects megabytes
-                const start = ix.hitStart(m.id), end = ix.end(m.id) - start <= MAX_SELECT_CHARS ? ix.end(m.id) : ix.start(m.id) + 1;
+                const start = ix.hitStart(id), end = ix.end(id) - start <= MAX_SELECT_CHARS ? ix.end(id) : ix.start(id) + 1;
                 void this.selectInEditor(this.edits.forward(start, 'start'), this.edits.forward(end, 'end'));
                 break;
             }
@@ -278,7 +312,17 @@ export class ViewerPanel {
 
     /** Selects a range of the current text in the file's editor, opening it beside the viewer if needed */
     private async selectInEditor(start: number, end: number) {
-        const document = this.document;
+        const snap = this.snapshot;
+        if (snap) {
+            // Offsets are within the selection; map them into the file it came from, if unchanged
+            if (snap.document.isClosed || snap.document.version !== snap.version) {
+                this.post({ type: 'toast', text: 'The file changed since this selection was opened' });
+                return;
+            }
+            start += snap.base;
+            end += snap.base;
+        }
+        const document = snap ? snap.document : this.document;
         if (document) {
             const range = new vscode.Range(document.positionAt(start), document.positionAt(end));
             this.ownSelection = { selection: new vscode.Selection(range.start, range.end), at: Date.now() };
@@ -325,8 +369,69 @@ export class ViewerPanel {
         if (steps.length) { this.post(this.revealMessage(ix, steps)); }
     }
 
-    private async copy(ix: JsonIndex, id: number, what: 'path' | 'pointer' | 'value') {
-        const steps = ix.pathAt(ix.hitStart(id)).path;
+    /** Which index a node id belongs to: the main one, or JSON decoded from a string */
+    private locate(id: number): { ix: JsonIndex; local: number; base: number; owner?: number } | undefined {
+        const main = this.index;
+        if (!main || !(id >= 0)) { return undefined; }
+        if (id < main.data.count) { return { ix: main, local: id, base: 0 }; }
+        let lo = 0, hi = this.subs.length - 1;
+        while (lo < hi) {
+            const mid = (lo + hi + 1) >> 1;
+            if (this.subs[mid].base <= id) { lo = mid; } else { hi = mid - 1; }
+        }
+        const sub = this.subs[lo];
+        return sub && id - sub.base < sub.ix.data.count ? { ix: sub.ix, local: id - sub.base, base: sub.base, owner: sub.owner } : undefined;
+    }
+
+    /** The node in the main index a node stands for: itself, or the string its JSON was decoded from */
+    private mainNode(id: number): number {
+        for (let at = this.locate(id); at?.owner !== undefined; at = this.locate(id)) { id = at.owner; }
+        return id;
+    }
+
+    /** Path from the document root, going through decoded strings */
+    private pathOf(id: number): PathStep[] {
+        const steps: PathStep[] = [];
+        for (let at = this.locate(id); at; at = at.owner === undefined ? undefined : this.locate(at.owner)) {
+            steps.unshift(...at.ix.pathAt(at.ix.hitStart(at.local)).path);
+        }
+        return steps;
+    }
+
+    /** Indexes the JSON inside a string (once) and sends its root */
+    private decode(ix: JsonIndex, id: number) {
+        const version = ix.version;
+        const existing = this.subs.find(s => s.owner === id);
+        if (existing) {
+            this.post({ type: 'decoded', version, id, root: { ...existing.ix.row(0), id: existing.base } });
+            return;
+        }
+        const at = this.locate(id);
+        if (!at || at.ix.kind(at.local) !== Kind.String) { return; }
+        let inner: string;
+        try { inner = JSON.parse(at.ix.text.slice(at.ix.start(at.local), at.ix.end(at.local))); } catch { return; }
+        const build = buildIndex(this.context.extensionPath, inner, { jsonc: true }, () => {});
+        void build.result.then(result => {
+            if (this.index !== ix) { return; }
+            if (isScanError(result)) {
+                this.post({ type: 'decoded', version, id, error: `Not valid JSON inside this string: ${result.message}` });
+                return;
+            }
+            // Another request for the same string may have finished first
+            const done = this.subs.find(s => s.owner === id);
+            const sub = done ?? { base: this.nextBase, ix: new JsonIndex(inner, result, version), owner: id };
+            if (!done) {
+                this.subs.push(sub);
+                this.nextBase += result.count;
+            }
+            this.post({ type: 'decoded', version, id, root: { ...sub.ix.row(0), id: sub.base } });
+        });
+    }
+
+    private async copy(id: number, what: 'path' | 'pointer' | 'value') {
+        const at = this.locate(id)!, ix = at.ix;
+        const steps = this.pathOf(id);
+        id = at.local;
         const where = accessorPath(steps);
         let text: string, toast: string;
         if (what === 'path') {
@@ -451,7 +556,7 @@ export class ViewerPanel {
     }
 
     private dispose() {
-        ViewerPanel.panels.delete(this.uri.toString());
+        if (ViewerPanel.panels.get(this.uri.toString()) === this) { ViewerPanel.panels.delete(this.uri.toString()); }
         this.build?.cancel();
         this.searcher.cancel();
         this.cancelSort();

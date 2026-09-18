@@ -17,7 +17,9 @@
     "Visualization"
   ],
   "activationEvents": [
-    "onLanguage:json"
+    "onLanguage:json",
+    "onLanguage:jsonc",
+    "onLanguage:jsonl"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -25,21 +27,38 @@
       {
         "command": "json-smart-viewer.show",
         "title": "JSON Smart View"
+      },
+      {
+        "command": "json-smart-viewer.showSelection",
+        "title": "Open Selection in JSON Smart View"
       }
     ],
     "menus": {
       "editor/title": [
         {
-          "when": "resourceLangId == json",
+          "when": "resourceLangId =~ /^(json|jsonc|jsonl)$/ || resourceExtname =~ /^\\.(jsonl|ndjson)$/",
           "command": "json-smart-viewer.show",
           "group": "navigation"
         }
       ],
       "explorer/context": [
         {
-          "when": "resourceExtname == .json",
+          "when": "resourceExtname =~ /^\\.(json|jsonc|jsonl|ndjson)$/",
           "command": "json-smart-viewer.show",
           "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "when": "editorHasSelection",
+          "command": "json-smart-viewer.showSelection",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "json-smart-viewer.showSelection",
+          "when": "editorHasSelection"
         }
       ]
     }

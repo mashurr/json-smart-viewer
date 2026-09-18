@@ -1,7 +1,7 @@
 // Builds an index for a document text, in a worker thread for anything but small files
 import * as path from 'path';
 import { Worker } from 'worker_threads';
-import { IndexData, ScanError, scan } from './scanner';
+import { IndexData, ScanError, ScanOptions, scan } from './scanner';
 
 // Below this size a worker costs more to start than the scan takes
 const IN_PROCESS_CHARS = 1 << 20;
@@ -13,11 +13,12 @@ export interface Build {
 }
 
 /** `bytes`, when given, is the file `text` was decoded from; the worker gets it instead of a copy of the text */
-export function buildIndex(extensionPath: string, text: string, jsonc: boolean, onProgress: (offset: number) => void, bytes?: Uint8Array): Build {
+export function buildIndex(extensionPath: string, text: string, mode: ScanOptions, onProgress: (offset: number) => void, bytes?: Uint8Array): Build {
+    const { jsonc, lines } = mode;
     if (text.length < IN_PROCESS_CHARS) {
         let cancelled = false;
         return {
-            result: new Promise(resolve => setImmediate(() => { if (!cancelled) { resolve(scan(text, { jsonc })); } })),
+            result: new Promise(resolve => setImmediate(() => { if (!cancelled) { resolve(scan(text, { jsonc, lines })); } })),
             cancel: () => { cancelled = true; },
         };
     }
@@ -33,9 +34,9 @@ export function buildIndex(extensionPath: string, text: string, jsonc: boolean, 
     if (bytes) {
         // Hand over our own copy: VS Code's buffer may still be in use, and copying bytes is much cheaper than copying the text
         const own = bytes.slice();
-        worker.postMessage({ bytes: own, jsonc }, [own.buffer]);
+        worker.postMessage({ bytes: own, jsonc, lines }, [own.buffer]);
     } else {
-        worker.postMessage({ text, jsonc });
+        worker.postMessage({ text, jsonc, lines });
     }
     return { result, cancel: () => { void worker.terminate(); } };
 }
