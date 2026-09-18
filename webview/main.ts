@@ -20,11 +20,14 @@ const tree = new Tree(treeEl, document.getElementById('rows')!, m => vscode.post
 const saved = vscode.getState();
 if (saved) { tree.restore(saved); }
 
-function showStatus(text: string, error = false) {
+function showStatus(text: string, kind: '' | 'error' | 'note' = '') {
     status.textContent = text;
-    status.classList.toggle('error', error);
+    status.className = `status ${kind}`;
     status.hidden = !text;
 }
+// An edit that made the file invalid; stays until a valid version arrives
+let problem = false;
+let loaded = false;
 
 window.addEventListener('message', (e: MessageEvent<HostMessage>) => {
     const m = e.data;
@@ -34,14 +37,29 @@ window.addEventListener('message', (e: MessageEvent<HostMessage>) => {
             break;
         case 'invalid':
             treeEl.hidden = true;
-            showStatus(m.line ? `Line ${m.line}, column ${m.column}: ${m.message}` : m.message, true);
+            showStatus(m.line ? `Line ${m.line}, column ${m.column}: ${m.message}` : m.message, 'error');
             break;
-        case 'document':
+        case 'editing':
+            if (!problem) { showStatus('Editing… the view updates when you pause.', 'note'); }
+            break;
+        case 'problem':
+            problem = true;
+            showStatus(`${m.line ? `Line ${m.line}, column ${m.column}: ` : ''}${m.message} — showing the last valid version.`, 'error');
+            break;
+        case 'reveal':
+            tree.reveal(m.version, m.path);
+            break;
+        case 'document': {
+            problem = false;
             showStatus('');
+            const first = treeEl.hidden || !loaded;
+            loaded = true;
             treeEl.hidden = false;
             tree.setDocument(m.version, m.root);
-            treeEl.focus({ preventScroll: true });
+            // Only on first load: later versions arrive while the user is typing in the editor
+            if (first) { treeEl.focus({ preventScroll: true }); }
             break;
+        }
         case 'rows':
             tree.addRows(m.version, m.id, m.start, m.rows);
             break;

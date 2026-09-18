@@ -1,7 +1,7 @@
 // Read access to an indexed document: rows for the viewer, keys and previews.
 // Values are decoded from the source text only when asked for.
 
-import { Kind, PREVIEW_CHARS, Row } from '../protocol';
+import { Kind, PathStep, PREVIEW_CHARS, Row } from '../protocol';
 import { IndexData } from './scanner';
 
 // Raw characters read for a string preview; escapes can make the source longer than the text
@@ -41,6 +41,36 @@ export class JsonIndex {
             if (e - s > PREVIEW_CHARS) { row.truncated = true; }
         }
         return row;
+    }
+
+    /** Where a node's selection starts in the text: its key if it has one, else its value */
+    hitStart(id: number): number {
+        const k = this.data.key[id];
+        return k >= 0 ? k : this.data.start[id];
+    }
+
+    /**
+     * The deepest node whose key or value contains `offset`, with the path to it.
+     * Walks down from the root with a binary search per level, so it never recurses.
+     */
+    pathAt(offset: number): { id: number; path: PathStep[] } {
+        let id = this.root;
+        const path: PathStep[] = [];
+        for (;;) {
+            const kind = this.data.kind[id], n = this.data.size[id];
+            if ((kind !== Kind.Object && kind !== Kind.Array) || n === 0) { break; }
+            let lo = 0, hi = n - 1, found = -1;
+            while (lo <= hi) {
+                const mid = (lo + hi) >> 1;
+                if (this.hitStart(this.child(id, mid)) <= offset) { found = mid; lo = mid + 1; } else { hi = mid - 1; }
+            }
+            if (found < 0) { break; }
+            const c = this.child(id, found);
+            if (offset >= this.data.end[c]) { break; }
+            path.push({ key: kind === Kind.Array ? found : this.keyOf(c), index: found });
+            id = c;
+        }
+        return { id, path };
     }
 
     /** Rows for children `start` to `start + count` of a container */

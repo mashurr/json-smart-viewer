@@ -12,7 +12,8 @@ export interface Build {
     cancel(): void;
 }
 
-export function buildIndex(extensionPath: string, text: string, jsonc: boolean, onProgress: (offset: number) => void): Build {
+/** `bytes`, when given, is the file `text` was decoded from; the worker gets it instead of a copy of the text */
+export function buildIndex(extensionPath: string, text: string, jsonc: boolean, onProgress: (offset: number) => void, bytes?: Uint8Array): Build {
     if (text.length < IN_PROCESS_CHARS) {
         let cancelled = false;
         return {
@@ -29,6 +30,12 @@ export function buildIndex(extensionPath: string, text: string, jsonc: boolean, 
         });
         worker.on('error', reject);
     });
-    worker.postMessage({ text, jsonc });
+    if (bytes) {
+        // Hand over our own copy: VS Code's buffer may still be in use, and copying bytes is much cheaper than copying the text
+        const own = bytes.slice();
+        worker.postMessage({ bytes: own, jsonc }, [own.buffer]);
+    } else {
+        worker.postMessage({ text, jsonc });
+    }
     return { result, cancel: () => { void worker.terminate(); } };
 }

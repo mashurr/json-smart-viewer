@@ -1,11 +1,15 @@
 // Virtual tree: only rows on screen exist in the DOM, and children are fetched
 // from the extension a page at a time when their parent is opened.
 
-import { Kind, PAGE, Row, ViewMessage } from '../src/protocol';
+import { Kind, PAGE, PathStep, Row, ViewMessage } from '../src/protocol';
 
 export const ROW_HEIGHT = 22;
 const OVERSCAN = 12;
 const INDENT = 16;
+// How long a changed row stays highlighted after a rebuild
+const FLASH_MS = 600;
+// How long after a rebuild the view keeps the top row in place while pages load
+const ANCHOR_MS = 1500;
 
 /** JSON Pointer of a child (RFC 6901), used as a stable id for open state */
 export function childPointer(parent: string, key: string | number): string {
@@ -22,6 +26,9 @@ export function groupSize(n: number): number {
 }
 
 const isContainer = (r: Row) => r.kind === Kind.Object || r.kind === Kind.Array;
+const signature = (r: Row) => `${r.kind}|${r.text ?? ''}|${r.truncated ? 1 : 0}|${r.size ?? ''}`;
+const itemKey = (item: Item | undefined) => !item || item.t === 'loading' ? undefined : item.t === 'group' ? item.id : item.pointer;
+const parentPointer = (p: string) => p.slice(0, Math.max(0, p.lastIndexOf('/')));
 
 type Item =
     | { t: 'node'; row: Row; pointer: string; depth: number; pos: number; setSize: number }
@@ -51,6 +58,10 @@ export class Tree {
         private readonly onStateChange: () => void,
     ) {
         scroller.addEventListener('scroll', () => this.schedulePaint());
+        // The user taking over scrolling ends any restore after a rebuild
+        for (const e of ['wheel', 'mousedown', 'keydown', 'touchstart']) {
+            scroller.addEventListener(e, () => { this.anchor = undefined; }, { passive: true });
+        }
         scroller.addEventListener('click', e => this.click(e));
         scroller.addEventListener('keydown', e => this.key(e));
         new ResizeObserver(() => this.schedulePaint()).observe(scroller);
@@ -67,8 +78,16 @@ export class Tree {
     }
     private pendingScroll: number | undefined;
 
+    // Kept across a rebuild: the top row and its offset, the active row, and old values to spot changes
+    private anchor: { key: string; offset: number; until: number } | undefined;
+    private activeKey: string | undefined;
+    private before: Map<string, string> | undefined;
+    private readonly changedAt = new Map<string, number>();
+    private pendingReveal: PathStep[] | undefined;
+
     setDocument(version: number, root: Row) {
         if (version !== this.version) {
+            if (this.version !== -1) { this.keepPlace(); }
             this.pages.clear();
             this.requested.clear();
         }
@@ -81,6 +100,61 @@ export class Tree {
         }
     }
 
+    /** Remembers where the user is, by path, before the rows are replaced by a new version */
+    private keepPlace() {
+        const top = Math.floor(this.scroller.scrollTop / ROW_HEIGHT), key = itemKey(this.items[top]);
+        this.anchor = key === undefined ? undefined : { key, offset: this.scroller.scrollTop - top * ROW_HEIGHT, until: Date.now() + ANCHOR_MS };
+        this.activeKey = itemKey(this.items[this.active]);
+        this.before = new Map();
+        for (const item of this.items) {
+            if (item.t === 'node') { this.before.set(item.pointer, signature(item.row)); }
+        }
+        const before = this.before;
+        window.setTimeout(() => { if (this.before === before) { this.before = undefined; } }, 3000);
+    }
+
+    /** Opens every parent of a path (the editor cursor moved) and makes it the active row */
+    reveal(version: number, path: PathStep[]) {
+        if (version !== this.version) { return; }
+        this.pendingReveal = path;
+        this.tryReveal();
+    }
+
+    private tryReveal() {
+        const path = this.pendingReveal, root = this.root;
+        if (!path || !root) { return; }
+        let parent = root, pointer = '', target = '';
+        for (let i = 0; i < path.length; i++) {
+            const step = path[i];
+            let start = 0, end = parent.size ?? 0;
+            // Open the groups the child falls in, like flatten() lays them out
+            while (end - start > PAGE) {
+                const g = groupSize(end - start), s = start + Math.floor((step.index - start) / g) * g, e = Math.min(s + g, end);
+                this.expanded.add(groupId(pointer, s, e));
+                start = s;
+                end = e;
+            }
+            const rows = this.page(parent, start, end);
+            if (!rows) { this.refresh(); return; }
+            const child = rows[step.index - start];
+            if (!child) { this.pendingReveal = undefined; return; }
+            const p = childPointer(pointer, step.key);
+            if (i === path.length - 1) { target = p; break; }
+            this.expanded.add(p);
+            parent = child;
+            pointer = p;
+        }
+        this.refresh();
+        const index = this.items.findIndex(item => item.t === 'node' && item.pointer === target);
+        if (index < 0) { return; }
+        this.pendingReveal = undefined;
+        this.active = index;
+        const y = index * ROW_HEIGHT, s = this.scroller;
+        if (y < s.scrollTop || y + ROW_HEIGHT > s.scrollTop + s.clientHeight) { s.scrollTop = y - s.clientHeight / 3; }
+        this.paint();
+        this.onStateChange();
+    }
+
     addRows(version: number, id: number, start: number, rows: Row[]) {
         if (version !== this.version) { return; }
         const k = `${id}:${start}`;
@@ -88,7 +162,7 @@ export class Tree {
         this.requested.delete(k);
         // A timer, not an animation frame: frames pause while the panel isn't visible
         if (!this.refreshTimer) {
-            this.refreshTimer = window.setTimeout(() => { this.refreshTimer = 0; this.refresh(); }, 0);
+            this.refreshTimer = window.setTimeout(() => { this.refreshTimer = 0; this.refresh(); this.tryReveal(); }, 0);
         }
     }
     private refreshTimer = 0;
@@ -148,9 +222,30 @@ export class Tree {
 
     refresh() {
         this.flatten();
-        this.active = Math.min(this.active, Math.max(0, this.items.length - 1));
         this.canvas.style.height = `${this.items.length * ROW_HEIGHT}px`;
+        this.restorePlace();
+        this.active = Math.min(this.active, Math.max(0, this.items.length - 1));
         this.paint();
+    }
+
+    /** After a rebuild: keep the same top row in view and the same row active, by path */
+    private restorePlace() {
+        const loading = this.items.some(i => i.t === 'loading');
+        const anchor = this.anchor;
+        if (anchor) {
+            const index = this.items.findIndex(i => itemKey(i) === anchor.key);
+            if (index >= 0) { this.scroller.scrollTop = index * ROW_HEIGHT + anchor.offset; }
+            if (Date.now() > anchor.until || (index >= 0 && !loading)) { this.anchor = undefined; }
+        }
+        if (this.activeKey !== undefined) {
+            // A path that no longer exists falls back to its nearest surviving parent
+            for (let key: string | undefined = this.activeKey; key !== undefined; key = key ? parentPointer(key) : undefined) {
+                const index = this.items.findIndex(i => itemKey(i) === key);
+                if (index >= 0) { this.active = index; break; }
+                if (loading) { return; }
+            }
+            if (!loading) { this.activeKey = undefined; }
+        }
     }
 
     private schedulePaint() {
@@ -197,6 +292,7 @@ export class Tree {
             return el;
         }
         const row = item.row;
+        this.markChanged(el, item.pointer, row);
         const openable = isContainer(row) && !!row.size;
         if (openable) {
             const open = this.expanded.has(item.pointer);
@@ -210,6 +306,27 @@ export class Tree {
         }
         el.append(valueElement(row));
         return el;
+    }
+
+    /** Highlights a row whose value differs from before the last rebuild */
+    private markChanged(el: HTMLElement, pointer: string, row: Row) {
+        const old = this.before?.get(pointer);
+        if (old !== undefined) {
+            this.before!.delete(pointer);
+            if (old !== signature(row)) { this.changedAt.set(pointer, Date.now()); }
+        }
+        const at = this.changedAt.get(pointer);
+        if (at === undefined) { return; }
+        const age = Date.now() - at;
+        if (age >= FLASH_MS) { this.changedAt.delete(pointer); return; }
+        el.classList.add('changed');
+        // Rows are redrawn while scrolling; continue the fade where it was
+        el.style.animationDelay = `-${age}ms`;
+    }
+
+    private select(index: number) {
+        const item = this.items[index];
+        if (item?.t === 'node') { this.send({ type: 'select', version: this.version, id: item.row.id }); }
     }
 
     private toggle(index: number) {
@@ -234,6 +351,7 @@ export class Tree {
         const i = Number(rowEl.dataset.i);
         this.active = i;
         this.scroller.focus({ preventScroll: true });
+        this.select(i);
         if (this.isOpen(this.items[i]) !== undefined) { this.toggle(i); } else { this.paint(); this.onStateChange(); }
     }
 
@@ -260,6 +378,8 @@ export class Tree {
                 }
                 break;
             case 'Enter':
+                this.select(this.active);
+                break;
             case ' ':
                 this.toggle(this.active);
                 break;

@@ -18,6 +18,12 @@ export interface Row {
     size?: number;
 }
 
+/** One step of a path: the key (or array index) and the child's position in its parent */
+export interface PathStep {
+    key: string | number;
+    index: number;
+}
+
 export const PREVIEW_CHARS = 200;
 /** Most rows sent in one reply, and the size of the smallest group */
 export const PAGE = 100;
@@ -26,8 +32,16 @@ export type HostMessage =
     | { type: 'progress'; loaded: number; total: number }
     | { type: 'document'; version: number; fileName: string; root: Row }
     | { type: 'invalid'; message: string; line: number; column: number }
-    | { type: 'rows'; version: number; id: number; start: number; rows: Row[] };
+    | { type: 'rows'; version: number; id: number; start: number; rows: Row[] }
+    /** The document changed and a rebuild is waiting for typing to pause */
+    | { type: 'editing' }
+    /** The edited text is invalid; the last valid version stays on screen */
+    | { type: 'problem'; message: string; line: number; column: number }
+    /** Show the node at this path (the editor cursor moved) */
+    | { type: 'reveal'; version: number; path: PathStep[] };
 
 export type ViewMessage =
     | { type: 'ready' }
-    | { type: 'children'; version: number; id: number; start: number; count: number };
+    | { type: 'children'; version: number; id: number; start: number; count: number }
+    /** Select this node's text in the editor */
+    | { type: 'select'; version: number; id: number };

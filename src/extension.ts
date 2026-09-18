@@ -15,7 +15,8 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.window.showInformationMessage('This is not a JSON file.');
             return;
         }
-        new ViewerPanel(context, uri, document);
+        const sourceColumn = vscode.window.activeTextEditor?.viewColumn ?? vscode.window.tabGroups.activeTabGroup.viewColumn;
+        ViewerPanel.show(context, uri, document, sourceColumn);
     }));
 }
 
