@@ -80,6 +80,7 @@
     "compile": "npm run typecheck && node esbuild.mjs",
     "typecheck": "tsc -p . && tsc -p webview",
     "watch": "node esbuild.mjs --watch",
+    "test": "esbuild src/table.test.ts --bundle --platform=node --format=cjs --target=node20 --outfile=out/test/table.test.js && node --test out/test/table.test.js",
     "lint": "eslint src webview"
   },
   "devDependencies": {

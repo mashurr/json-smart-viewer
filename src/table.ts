@@ -45,7 +45,7 @@ export async function findTables(ix: JsonIndex, isCurrent: () => boolean): Promi
     const count = ix.data.count;
     let began = Date.now();
     for (let id = 0; id < count; id++) {
-        if (ix.data.size[id] > 1 || (id === 0 && ix.data.size[id] > 0)) {
+        if (ix.data.size[id] > 0) {
             const shape = tableShape(ix, id);
             if (shape) { found.push({ id, shape }); }
         }
@@ -193,4 +193,3 @@ export function sortInWorker(extensionPath: string, keys: SortKeys, desc: boolea
     worker.postMessage({ ...keys, desc }, [keys.rank.buffer as ArrayBuffer, keys.num.buffer as ArrayBuffer, keys.ends.buffer as ArrayBuffer]);
     return { result, cancel: () => { void worker.terminate(); } };
 }
-

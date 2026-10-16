@@ -1,5 +1,9 @@
 # Change Log
 
+## [Unreleased]
+
+- Include nested single-row arrays and single-entry maps of objects in the Table view list.
+
 ## [0.1.0]
 
 - Opens files of hundreds of megabytes: the viewer only builds what's on screen, and files over 50 MB are read straight from disk. Available from the editor title and the Explorer.

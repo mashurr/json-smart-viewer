@@ -3,6 +3,7 @@ icon.svg
 .vscode/**
 node_modules/**
 src/**
+out/test/**
 webview/**
 .gitignore
 .yarnrc
